@@ -410,26 +410,39 @@ const baseHp=c=>Math.round(SPECIES[c.sp].hp*(hasPerk('hardy')?1.25:1))+gearHp(c)
 function refreshHp(c){const m=baseHp(c);c.hp=Math.max(1,Math.min(m,c.hp+(m-c.maxhp)));c.maxhp=m;}
 const SPECIES={
   // lizards
-  iguana:{name:'Green Iguana',group:'Lizard',tier:1,food:'greens',power:2,hp:8,ab:'none',abd:'Bites over the wall. Cheap to raise.'},
+  iguana:{name:'Green Iguana',group:'Lizard',tier:1,food:'greens',power:2,hp:8,ab:'none',abd:'Bites over the wall. Cheap to raise.',get:'One of the animals you start with, and one of your four starting eggs. Strays wander in to the fire, and traders carry clutches of its eggs.'},
   crocodile:{name:'Crocodile',group:'Lizard',tier:2,food:'rodents',power:4,hp:18,from:'iguana',ab:'crush',abd:'Crushing jaws: every bite has a 1-in-6 chance to deal triple damage.'},
   komodo:{name:'Komodo Dragon',group:'Lizard',tier:3,food:'rodents',power:6,hp:24,from:'crocodile',ab:'bleed',scale:1.1,abd:'Septic bite: bitten enemies lose 1.5 HP a second for 4 s.'},
   // snakes
-  garter:{name:'Garter Snake',group:'Snake',tier:1,food:'rodents',power:2,hp:6,ab:'quick',abd:'Quick: strikes 50% faster.'},
+  garter:{name:'Garter Snake',group:'Snake',tier:1,food:'rodents',power:2,hp:6,ab:'quick',abd:'Quick: strikes 50% faster.',get:'One of your four starting eggs. Strays wander in to the fire, and traders carry clutches of its eggs. Keep one in the pen and rats in the stores become food instead of a loss.'},
   cobra:{name:'Spitting Cobra',group:'Snake',tier:2,food:'rodents',power:4,hp:9,from:'garter',ab:'blind',abd:'Blind: spits over the wall every 6 s; the target stops for 3 s.'},
   anaconda:{name:'Anaconda',group:'Snake',tier:3,food:'rodents',power:6,hp:22,from:'cobra',ab:'constrict',scale:1.35,abd:'Constrict: holds its target still while it squeezes (the enemy cannot move or attack).'},
   // frogs
-  treefrog:{name:'Tree Frog',group:'Amphibian',tier:1,food:'insects',power:1,hp:5,ab:'poison',abd:'Poison: 0.5 HP a second for 4 s.'},
+  treefrog:{name:'Tree Frog',group:'Amphibian',tier:1,food:'insects',power:1,hp:5,ab:'poison',abd:'Poison: 0.5 HP a second for 4 s.',get:'One of your four starting eggs. Strays wander in to the fire, and traders carry clutches of its eggs.'},
   toad:{name:'Poison Toad',group:'Amphibian',tier:2,food:'insects',power:2,hp:14,from:'treefrog',ab:'toxic',scale:1.25,wide:1.25,abd:'Toxic skin: anything that bites the toad is poisoned (1 HP a second for 4 s). Bites poison too.'},
   dartfrog:{name:'Poison Dart Frog',group:'Amphibian',tier:3,food:'insects',power:4,hp:10,from:'toad',ab:'poison2',scale:1.2,wide:0.9,abd:'Spits strong poison over the wall: 1.5 HP a second for 4 s, from 2 tiles away.'},
   // birds
-  pigeon:{name:'Pigeon',group:'Bird',tier:1,food:'insects',power:1,hp:4,bird:true,ab:'warn',abd:'Warning: on a wall or tower, spots the herd 2 hours earlier with a head count. Warm-blooded.'},
+  pigeon:{name:'Pigeon',group:'Bird',tier:1,food:'insects',power:1,hp:4,bird:true,ab:'warn',abd:'Warning: on a wall or tower, spots the herd 2 hours earlier with a head count. Warm-blooded.',get:'One of your four starting eggs, and traders carry clutches of its eggs. Pigeons do not wander in on their own.'},
   crow:{name:'Crow',group:'Bird',tier:2,food:'insects',power:3,hp:6,bird:true,from:'pigeon',ab:'warn',abd:'Mean and loud: hits three times harder than a pigeon and keeps the early warning. Warm-blooded.'},
   hawk:{name:'Bald Eagle',group:'Bird',tier:3,food:'rodents',power:5,hp:10,bird:true,from:'crow',ab:'dive',scale:1.2,abd:'Dive: strikes the weakest enemy within 4 tiles. Warm-blooded.'},
   // turtles
-  boxturtle:{name:'Box Turtle',group:'Turtle',tier:1,food:'greens',power:2,hp:16,ab:'taunt',abd:'Taunt: enemies that get inside attack the turtle first.'},
+  boxturtle:{name:'Box Turtle',group:'Turtle',tier:1,food:'greens',power:2,hp:16,ab:'taunt',abd:'Taunt: enemies that get inside attack the turtle first.',get:'One of the animals you start with. Strays wander in to the fire, and traders carry clutches of its eggs.'},
   snapping:{name:'Snapping Turtle',group:'Turtle',tier:2,food:'rodents',power:4,hp:22,from:'boxturtle',ab:'snap',abd:'Taunts, and snaps back: anything biting it takes 1 damage a second in return.'},
   tortoise:{name:'Giant Tortoise',group:'Turtle',tier:3,food:'greens',power:3,hp:48,from:'snapping',ab:'tank',scale:1.45,wide:1.1,abd:'A walking wall: taunts and takes half damage from every bite.'},
 };
+const UPCOST={2:'3 scrap + 2 of its food',3:'6 scrap + 4 of its food + 2 bone'};
+const UPTECH={2:'Selective breeding',3:'Apex bloodlines'};
+// Where an animal comes from. Tier 1 carries its own line; the bred forms are described from the
+// research that unlocks them, so this never drifts from the tech tree.
+function howToGet(sp){const s=SPECIES[sp];if(s.get)return s.get;
+  const r=RESEARCH.find(r=>r.name===UPTECH[s.tier]);
+  return `Bred, not found. Research ${UPTECH[s.tier]}${r?` (${r.cost} pts)`:''}, then upgrade a ${SPECIES[s.from].name} for ${UPCOST[s.tier]}. The upgrade applies to every ${SPECIES[s.from].name} you own and to every one that hatches after it.`;}
+const BREED_NOTE='Any two of the same species resting in the pen lay an egg at midnight, if there is pen room. Hold a species in the Animals panel to stop it breeding.';
+const GROUPS_ORDER=['Lizard','Snake','Amphibian','Bird','Turtle'];
+const GROUP_ICON={Lizard:'paw',Snake:'poison',Amphibian:'water',Bird:'farsight',Turtle:'shield_steel'};
+const ABN={none:'Plain bite',crush:'Crushing jaws',bleed:'Septic bite',quick:'Quick strike',blind:'Blinding spit',
+  constrict:'Constrict',poison:'Poison bite',toxic:'Toxic skin',poison2:'Poison dart',warn:'Lookout',dive:'Diving strike',
+  taunt:'Taunt',snap:'Snap back',tank:'Walking wall'};
 const TAUNTS=new Set(['taunt','snap','tank']);
 const ENEMY={
   squirrel:{name:'Squirrel',hp:3,dmg:0.5,speed:42,cost:2,min:1,skitter:true,desc:'fast, weak, and never stands still'},
@@ -1326,7 +1339,7 @@ function log(msg,cls=''){S.log.push([msg,cls]);if(S.log.length>150)S.log.shift()
 function btn(label,sub,on,cls=''){const b=document.createElement('button');b.className='btn '+cls;b.innerHTML=label+(sub?`<small>${sub}</small>`:'');b.onclick=on;return b;}
 const el=(tag,cls,html)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;};
 const statBar=(p,s)=>{let h=`<span class="stat" title="${STATS[s]}">${EM[s]}`;for(let i=1;i<=5;i++)h+=`<i class="${i<=p.st[s]?'on':(i===p.st[s]+1&&p.xp[s]>0?'xp':'')}"></i>`;return h+`</span>`;};
-const TABS=[['build','builder','Build'],['people','people','People'],['animals','animals','Animals'],['walls','wall','Walls'],['research','research','Research'],['supply','basket','Supplies'],['log','scroll','Log']];
+const TABS=[['build','builder','Build'],['people','people','People'],['animals','animals','Animals'],['dex','journal','Animaldex'],['walls','wall','Walls'],['research','research','Research'],['supply','basket','Supplies'],['log','scroll','Log']];
 function openTab(t,arg){tab=t;tabArg=arg||null;pickChip=null;pickSlot=null;$('drawer').hidden=false;renderDrawer();}
 function closeDrawer(){tab=null;tabArg=null;$('drawer').hidden=true;buildSel=null;renderBar();}
 $('drawerClose').onclick=closeDrawer;
@@ -1351,7 +1364,7 @@ function renderHud(){
 }
 function renderBar(){
   const bar=$('bar');bar.innerHTML='';if(!S)return;const nh=nextHordeDay();
-  const counts={build:S.queue.length?`${S.queue.length} queued`:'',people:`${S.people.length} · ${inJob('builder').length} building`,animals:`${S.creatures.filter(c=>c.post==='guard').length} on walls · ${S.eggs.length} eggs`,walls:S.battle?`${S.battle.enemies.length} attacking`:`day ${nh} · herd ${hordeStrength(nh)}`,research:`${fl(S.res.research)} pts`,supply:'',log:''};
+  const counts={build:S.queue.length?`${S.queue.length} queued`:'',dex:`${S.stats.seen.length}/${Object.keys(SPECIES).length} raised`,people:`${S.people.length} · ${inJob('builder').length} building`,animals:`${S.creatures.filter(c=>c.post==='guard').length} on walls · ${S.eggs.length} eggs`,walls:S.battle?`${S.battle.enemies.length} attacking`:`day ${nh} · herd ${hordeStrength(nh)}`,research:`${fl(S.res.research)} pts`,supply:'',log:''};
   TABS.forEach(([id,em,name])=>{const on=tab===id||(id==='walls'&&tab==='wall');const b=el('button','btn'+(on?' sel':'')+(id==='walls'&&(S.battle||fronts().some(f=>!S.walls[f].lvl))?' alert':''),`${ico(em)}${name}<span class="n">${counts[id]||' '}</span>`);b.onclick=()=>{ac();on?closeDrawer():openTab(id);};bar.appendChild(b);});
 }
 let lastTab=null;
@@ -1494,6 +1507,24 @@ function renderDrawer(){
     else body.appendChild(el('div','card',`<div class="t"><span>Next horde: day ${nh} at dusk from the ${fr.map(f=>EM[f]+' '+DIRS[f].toLowerCase()).join(' or ')}${S.day>=15&&fr.length>1?' (two fronts at once)':''}</span><b>herd ${hordeStrength(nh)}</b></div><div class="muted">${EM.guard} guards ${d.guards} · animal power on walls ${d.posted}. Enemies stop at the wall and chew; animals posted there bite them over it. ${earlyEyes()?'Your lookouts give 2 extra hours of warning and a head count.':'A pigeon on a wall or a tower gives earlier warning and a head count.'}</div>${S.lastHorde?`<div class="muted">Last: day ${S.lastHorde.day}, ${S.lastHorde.killed} killed${S.lastHorde.lost.length?', lost '+S.lastHorde.lost.join(', '):''}${S.lastHorde.wounded.length?', wounded '+S.lastHorde.wounded.join(', '):''}${S.lastHorde.people.length?', '+S.lastHorde.people.join(', ')+' infected':''}.</div>`:''}`));
     const order=tab==='wall'?[tabArg].concat(Object.keys(DIRS).filter(x=>x!==tabArg)):Object.keys(DIRS);
     order.forEach(dir=>body.appendChild(wallCard(dir,tab==='wall'&&dir===tabArg)));
+  }
+  if(tab==='dex'){title.innerHTML=ico('journal')+'ANIMALDEX';
+    const seen=new Set(S.stats.seen);const have={};S.creatures.forEach(c=>{have[c.sp]=(have[c.sp]||0)+1;});
+    body.appendChild(el('div','muted',`${seen.size} of ${Object.keys(SPECIES).length} raised. Five bloodlines, three forms each: the first you find, the second and third you breed. ${BREED_NOTE}`));
+    GROUPS_ORDER.forEach(g=>{
+      const line=Object.keys(SPECIES).filter(k=>SPECIES[k].group===g).sort((x,y)=>SPECIES[x].tier-SPECIES[y].tier);
+      const box=el('div','job');
+      box.appendChild(el('div','t',`<b>${ico(GROUP_ICON[g])} ${g} line</b><span class="muted">${line.filter(k=>seen.has(k)).length}/${line.length}</span>`));
+      line.forEach((sp,i)=>{const s2=SPECIES[sp];const known=seen.has(sp);const n=have[sp]||0;
+        const card=el('div','card'+(known?'':' muted'));
+        card.appendChild(el('div','t',`<b>${aico(sp,40)} ${s2.name}</b><span>${'·'.repeat(0)}${known?(n?`${n} in camp`:'raised before'):'not yet raised'}</span>`));
+        card.appendChild(el('small','',`Form ${s2.tier} of 3 · ${ico('str',1)} ${s2.power} power · ${ico('heart_small',1)} ${s2.hp} HP · eats ${s2.food==='rodents'?aico('mouse',22):ico(s2.food,1)} every 2 days${s2.bird?' · warm-blooded: no winter penalty':' · cold-blooded: half strength in winter outside the fire\'s warmth, +25% in a heat wave'}`));
+        card.appendChild(el('div','',`<b>${ABN[s2.ab]||'No special ability'}</b><br>${s2.abd}`));
+        card.appendChild(el('small','muted',howToGet(sp)));
+        box.appendChild(card);
+        if(i<line.length-1)box.appendChild(el('div','muted','&#9660; breeds into'));});
+      body.appendChild(box);});
+    body.appendChild(el('div','card',`<b>${ico('weapon',1)} Gear</b><br>Any animal can be fitted with one armour and one weapon from the Workshop, whatever its form.<br>${Object.values(GEAR).map(g=>`${g.n} — ${g.d}`).join('<br>')}`));
   }
   if(tab==='research'){title.innerHTML=ico('research')+'RESEARCH';body.appendChild(el('div','muted',`${fl(S.res.research)} points · +${prod.research} a day from ${inJob('researcher').length} researchers. Three branches, four steps each, in order.${M().keep?' Finished research carries over if the base falls.':' On Animalgeddon, nothing carries over.'}`));
     Object.values(TECH).forEach(br=>{body.appendChild(el('h4','',`${br.em} ${br.name.toUpperCase()}`));
@@ -1697,6 +1728,6 @@ if(savedGame){S=migrate(savedGame);render();showTitle();}
 else{showTitle();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
-window.__AG={get S(){return S},get mus(){return mus},tick,updateBattle,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles};
+window.__AG={get S(){return S},get mus(){return mus},aico,ABN,howToGet,BREED_NOTE,tick,updateBattle,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles};
 })();
 </script>
