@@ -596,7 +596,7 @@ const MUSIC={
   lose:{bpm:60,loop:false,ch:[
     {w:'square',v:.03,p:[[69,4],R,R,R,[67,4],R,R,R,[65,4],R,R,R,[64,8],R,R,R,R,R,R,R,R,R,R,R,[62,4],R,R,R,[60,4],R,R,R,[59,4],R,R,R,[57,28],R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R]},
     {w:'triangle',v:.07,p:[[45,8],R,R,R,R,R,R,R,[41,8],R,R,R,R,R,R,R,[40,8],R,R,R,R,R,R,R,[43,8],R,R,R,R,R,R,R,[33,28],R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R]}]}};
-const TRACKS={menu:{f:'assets/music/menu.ogg',loop:true,fb:'menu'},day:{f:'assets/music/day.ogg',loop:true,fb:'day'},night:{f:'assets/music/night.ogg',loop:true,fb:'day'},horde:{f:'assets/music/horde.ogg',loop:true,fb:'horde'},lose:{f:'assets/music/lose.ogg',loop:false,fb:'lose'},win:{f:'assets/music/win.ogg',loop:false,fb:'day'},expedition:{f:'assets/music/expedition.ogg',loop:true,fb:'horde'},opening1:{f:'assets/music/opening1.ogg',loop:true,fb:'menu'},opening2:{f:'assets/music/opening2.ogg',loop:false,fb:'menu'}};
+const TRACKS={menu:{f:'assets/music/menu.ogg',loop:true,fb:'menu'},day:{f:'assets/music/day.ogg',loop:true,fb:'day'},night:{f:'assets/music/night.ogg',loop:true,fb:'day'},horde:{f:'assets/music/horde.ogg',loop:true,fb:'horde'},lose:{f:'assets/music/lose.ogg',loop:false,fb:'lose'},win:{f:'assets/music/win.ogg',loop:false,fb:'day'},expedition:{f:'assets/music/expedition.ogg',loop:true,fb:'horde'},opening1:{f:'assets/music/opening1.ogg',loop:false,fb:'menu'},opening2:{f:'assets/music/opening2.ogg',loop:false,fb:'menu'}};
 const mus={id:null,gain:null,src:null,step:0,next:0,timer:null,master:null,bufs:{},loads:{},ended:null};
 const mf=n=>440*Math.pow(2,(n-69)/12);
 function musicMaster(){const a=ac();if(!a)return null;if(!mus.master){mus.master=a.createGain();mus.master.connect(a.destination);}mus.master.gain.value=muted?0:(CFG.music==null?0.5:CFG.music);return mus.master;}
@@ -660,10 +660,13 @@ function updateAmb(dt){const a=AC;if(!a)return;const m=ambMaster();const vol=mut
 function updateMusic(){if(!AC)return;musicMaster();if(document.hidden){playMusic(null);return;}
   const night=S&&(S.hour>=21||S.hour<6);
   // The film and the title screen share one track, so the song runs unbroken across the cut:
-  // playMusic() is a no-op when the track asked for is already the one playing. In-game menus
-  // keep the menu theme.
+  // playMusic() is a no-op when the track asked for is already the one playing. The opening cue
+  // is a one-shot, not a loop - it ends at full volume with no fade - so it carries the film and
+  // the half-minute of title screen that follows, and then the menu theme, which is written to
+  // loop, takes over for as long as the player sits there. In-game menus use the menu theme too.
+  if(mus.ended===OPENING.track)mus.openingDone=true;
   const titleish=!S||uiModal==='title'||uiModal==='opening';
-  const want=titleish?OPENING.track:uiModal?'menu':S.over?'lose':S.battle?'horde':S.playWin?'win':night?'night':'day';
+  const want=titleish?(mus.openingDone?'menu':OPENING.track):uiModal?'menu':S.over?'lose':S.battle?'horde':S.playWin?'win':night?'night':'day';
   if(want==='lose'&&mus.ended==='lose'&&mus.id===null)return;
   if(want!=='lose')mus.ended=null;
   playMusic(want);}
