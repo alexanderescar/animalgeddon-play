@@ -150,6 +150,16 @@ details{color:var(--ink-dim)} summary{cursor:pointer;color:var(--ink)} details u
 .setrow small{color:var(--ink-dim);display:block;font-size:14px}
 .modal .box a{color:#1d4f8a}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
+/* ---- opening film ---- */
+.opening{position:fixed;inset:0;z-index:90;background:#000;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.openingVid{max-width:100%;max-height:100%;width:auto;height:auto;display:block;image-rendering:auto}
+.openingGate{text-align:center;color:var(--cream);padding:24px}
+.openingGate h1{font-family:'Press Start 2P',monospace;font-size:clamp(18px,5vw,40px);color:var(--amber);margin:0 0 18px;letter-spacing:3px;line-height:1.5}
+.openingGate p{font-size:15px;color:#b9c6a6;margin:0;animation:gatePulse 1.8s ease-in-out infinite}
+@keyframes gatePulse{0%,100%{opacity:.45}50%{opacity:1}}
+.openingSkip{position:absolute;right:18px;bottom:16px;z-index:2;background:rgba(20,26,16,.72);color:var(--cream);border:1px solid rgba(233,240,220,.35);border-radius:4px;padding:7px 13px;font:inherit;font-size:13px;cursor:pointer;opacity:.5;transition:opacity .2s}
+.openingSkip:hover{opacity:1}
 </style>
 
 <div class="app">
@@ -586,10 +596,17 @@ const MUSIC={
   lose:{bpm:60,loop:false,ch:[
     {w:'square',v:.03,p:[[69,4],R,R,R,[67,4],R,R,R,[65,4],R,R,R,[64,8],R,R,R,R,R,R,R,R,R,R,R,[62,4],R,R,R,[60,4],R,R,R,[59,4],R,R,R,[57,28],R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R]},
     {w:'triangle',v:.07,p:[[45,8],R,R,R,R,R,R,R,[41,8],R,R,R,R,R,R,R,[40,8],R,R,R,R,R,R,R,[43,8],R,R,R,R,R,R,R,[33,28],R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R]}]}};
-const TRACKS={menu:{f:'assets/music/menu.ogg',loop:true,fb:'menu'},day:{f:'assets/music/day.ogg',loop:true,fb:'day'},night:{f:'assets/music/night.ogg',loop:true,fb:'day'},horde:{f:'assets/music/horde.ogg',loop:true,fb:'horde'},lose:{f:'assets/music/lose.ogg',loop:false,fb:'lose'},win:{f:'assets/music/win.ogg',loop:false,fb:'day'},expedition:{f:'assets/music/expedition.ogg',loop:true,fb:'horde'},opening1:{f:'assets/music/opening1.ogg',loop:false,fb:'menu'},opening2:{f:'assets/music/opening2.ogg',loop:false,fb:'menu'}};
+const TRACKS={menu:{f:'assets/music/menu.ogg',loop:true,fb:'menu'},day:{f:'assets/music/day.ogg',loop:true,fb:'day'},night:{f:'assets/music/night.ogg',loop:true,fb:'day'},horde:{f:'assets/music/horde.ogg',loop:true,fb:'horde'},lose:{f:'assets/music/lose.ogg',loop:false,fb:'lose'},win:{f:'assets/music/win.ogg',loop:false,fb:'day'},expedition:{f:'assets/music/expedition.ogg',loop:true,fb:'horde'},opening1:{f:'assets/music/opening1.ogg',loop:true,fb:'menu'},opening2:{f:'assets/music/opening2.ogg',loop:false,fb:'menu'}};
 const mus={id:null,gain:null,src:null,step:0,next:0,timer:null,master:null,bufs:{},loads:{},ended:null};
 const mf=n=>440*Math.pow(2,(n-69)/12);
 function musicMaster(){const a=ac();if(!a)return null;if(!mus.master){mus.master=a.createGain();mus.master.connect(a.destination);}mus.master.gain.value=muted?0:(CFG.music==null?0.5:CFG.music);return mus.master;}
+// The opening film. `track` is the music that plays over it AND keeps looping on the title
+// screen afterwards: because playMusic() is a no-op when the requested track is already playing,
+// the song carries straight through the cut with no restart and no gap. The video itself is
+// muted and the song comes from the audio engine, so the loop is driven by a clean .ogg rather
+// than by whatever is muxed into the MP4 — set useVideoAudio if the film's own track should be
+// used instead, in which case the loop can only start when the film ends.
+const OPENING={src:'assets/opening.mp4',track:'opening1',useVideoAudio:false};
 function loadTrack(id){if(mus.loads[id])return mus.loads[id];mus.loads[id]=(async()=>{try{const r=await fetch(TRACKS[id].f);if(!r.ok)throw 0;const ab=await r.arrayBuffer();mus.bufs[id]=await AC.decodeAudioData(ab);}catch(e){mus.bufs[id]=false;}return mus.bufs[id];})();return mus.loads[id];}
 function mnote(ch,entry,t,stepLen){const a=AC;const note=Array.isArray(entry)?entry[0]:entry;const len=(Array.isArray(entry)?entry[1]:1)*stepLen*0.9;
   if(ch.w==='hat'){const n=a.createBufferSource();const b=a.createBuffer(1,a.sampleRate*0.03,a.sampleRate);const d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length);n.buffer=b;const g=a.createGain();g.gain.value=ch.v;const f=a.createBiquadFilter();f.type='highpass';f.frequency.value=6000;n.connect(f);f.connect(g);g.connect(mus.gain);n.start(t);return;}
@@ -642,7 +659,11 @@ function updateAmb(dt){const a=AC;if(!a)return;const m=ambMaster();const vol=mut
   if(amb.flash>0)amb.flash-=dt;}
 function updateMusic(){if(!AC)return;musicMaster();if(document.hidden){playMusic(null);return;}
   const night=S&&(S.hour>=21||S.hour<6);
-  const want=!S||uiModal?'menu':S.over?'lose':S.battle?'horde':S.playWin?'win':night?'night':'day';
+  // The film and the title screen share one track, so the song runs unbroken across the cut:
+  // playMusic() is a no-op when the track asked for is already the one playing. In-game menus
+  // keep the menu theme.
+  const titleish=!S||uiModal==='title'||uiModal==='opening';
+  const want=titleish?OPENING.track:uiModal?'menu':S.over?'lose':S.battle?'horde':S.playWin?'win':night?'night':'day';
   if(want==='lose'&&mus.ended==='lose'&&mus.id===null)return;
   if(want!=='lose')mus.ended=null;
   playMusic(want);}
@@ -1202,7 +1223,7 @@ function drawTitleScene(){titleT++;const W=cv.width,H=cv.height,t=titleT;const h
   ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(0,0,W,18);ctx.fillRect(0,H-18,W,18);}
 function draw(ts){
   tickA++;$('modal').classList.toggle('titlemode',uiModal==='title');dtReal=lastFrame?Math.min(0.1,(ts-lastFrame)/1000):0;lastFrame=ts;
-  if(!S||uiModal==='title'){ctx.setTransform(1,0,0,1,0,0);drawTitleScene();requestAnimationFrame(draw);return;}
+  if(!S||uiModal==='title'||uiModal==='opening'){ctx.setTransform(1,0,0,1,0,0);drawTitleScene();requestAnimationFrame(draw);return;}
   const running=S.speed>0&&!S.alerts.length;
   if(S.battle&&running)updateBattle(dtReal*S.speed);
   if(running&&S.queue.length&&inJob('builder').length){hammerT-=dtReal*S.speed;if(hammerT<=0){hammerT=1.6+Math.random()*1.4;sfx('hammer');}}
@@ -1585,6 +1606,45 @@ function renderDrawer(){
   }
   body.scrollTop=scroll;renderBar();
 }
+function showOpening(){
+  // Browsers will not play audio before a gesture, so the film is gated behind one click. That
+  // click is also what unlocks the game's AudioContext, exactly as the first click does today.
+  // ?nointro goes straight to the title: the tests use it, and it saves sitting through the film
+  // thirty times while working on something else.
+  if(!OPENING.src||/[?&]nointro\b/.test(location.search))return showTitle();
+  const vid=document.createElement('video');
+  vid.src=OPENING.src;vid.preload='auto';vid.playsInline=true;vid.muted=!OPENING.useVideoAudio;
+  vid.setAttribute('playsinline','');vid.className='openingVid';
+  let done=false,gated=false;
+  const finish=()=>{if(done)return;done=true;
+    vid.pause();ov.remove();
+    if(OPENING.useVideoAudio)ac();
+    uiModal=null;showTitle();};              // the track is already looping; showTitle leaves it alone
+  const gate=()=>{
+    if(gated)return;gated=true;
+    ac();                                    // unlock audio on the gesture
+    if(!OPENING.useVideoAudio){uiModal='opening';updateMusic();}
+    ov.querySelector('.openingGate').remove();
+    ov.appendChild(vid);
+    ov.appendChild(skip);
+    const pl=vid.play();if(pl&&pl.catch)pl.catch(()=>finish());
+  };
+  const ov=document.createElement('div');ov.className='opening';
+  ov.innerHTML=`<div class="openingGate"><h1>ANIMALGEDDON</h1><p>Click to begin</p></div>`;
+  const skip=el('button','openingSkip','Skip &#9654;&#9654;');
+  skip.onclick=e=>{e.stopPropagation();finish();};
+  ov.onclick=()=>{if(!gated)gate();};
+  vid.addEventListener('ended',finish);
+  vid.addEventListener('error',finish);      // no film in this build: straight to the title
+  document.addEventListener('keydown',function esc(e){
+    if(done){document.removeEventListener('keydown',esc);return;}
+    if(e.key==='Escape')finish();else if(!gated)gate();});
+  document.body.appendChild(ov);
+  uiModal='opening';
+  // if the file is missing or unplayable, do not sit on a gate the click cannot satisfy
+  vid.addEventListener('loadedmetadata',()=>{ov.classList.add('ready');});
+  setTimeout(()=>{if(!gated&&!vid.readyState)finish();},4000);
+}
 function showTitle(){
   uiModal='title';if(S)pause();$('advisor').hidden=!S;$('tip').hidden=!S;$('drawer').hidden=true;
   const m=$('modal');m.hidden=false;m.innerHTML='';m.classList.add('titlemode');const box=el('div','box wide titlecard');
@@ -1751,8 +1811,8 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&S)pause();
 
 const savedGame=load();
 loadCfg();
-if(savedGame){S=migrate(savedGame);render();showTitle();}
-else{showTitle();}
+if(savedGame){S=migrate(savedGame);render();showOpening();}
+else{showOpening();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
 window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles};
