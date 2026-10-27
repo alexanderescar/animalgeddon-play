@@ -57,7 +57,7 @@ canvas#map{image-rendering:pixelated;display:block;max-width:100%;max-height:100
 .advisor.fight{border-color:#b33a2c;background:rgba(42,14,10,.94)} .advisor.fight b{color:#ff8a7a}
 .tip{position:absolute;left:10px;top:10px;color:var(--dim);background:rgba(11,16,10,.8);border:2px solid rgba(90,46,20,.8);padding:2px 8px;font-size:16px;pointer-events:none;max-width:70%}
 /* modals: nailed board; story and events on parchment */
-.modal{position:absolute;inset:0;background:rgba(5,8,5,.62);}.modal.titlemode{background:rgba(5,8,5,.18);justify-content:flex-end;padding-right:36px}.modal{display:flex;align-items:center;justify-content:center;padding:16px;z-index:4}
+.modal{position:absolute;inset:0;background:rgba(5,8,5,.62);}.modal.titlemode{background:rgba(5,8,5,.18);justify-content:center;align-items:flex-end;padding:0 14px 14px}.modal{display:flex;align-items:center;justify-content:center;padding:16px;z-index:4}
 .modal .box{border:28px solid transparent;border-image:url(assets/toffeecraft-ui/panel_big.png) 14 fill stretch;image-rendering:pixelated;max-width:470px;width:100%;display:flex;flex-direction:column;gap:10px;max-height:100%;overflow:hidden;box-sizing:border-box;color:var(--ink);position:relative;z-index:0;filter:drop-shadow(6px 6px 0 rgba(0,0,0,.5))}
 .modal .box>*{min-height:0;flex:0 1 auto}.modal .box>p,.modal .box>.menu,.modal .box>.sets,.modal .box>.story{overflow-y:auto;overflow-x:hidden;scrollbar-color:#a07a50 transparent;scrollbar-width:thin;margin:0}.modal .box>.row{flex:0 0 auto}
 .modal .box::before{content:'';position:absolute;inset:-8px;background:var(--parch);z-index:-1}
@@ -68,6 +68,28 @@ canvas#map{image-rendering:pixelated;display:block;max-width:100%;max-height:100
 .modal .box.scroll::before{display:none}
 .modal h3{font-family:var(--body);font-size:21px;font-weight:700;margin:0;line-height:1.3;display:flex;align-items:center;gap:8px;letter-spacing:.3px;color:var(--ink)}
 .modal p{margin:0}
+/* The last frame of the opening film, held as the title backdrop: the film ends on its own
+   logo, so the title screen keeps showing it instead of drawing a second wordmark underneath.
+   It sits above the canvas and below the mode card. */
+.titlebg{position:absolute;inset:0;z-index:1;background:#0a0d08}
+/* The frame is held in the upper panel only. Cropping it there puts the film's logo clear of the
+   mode card below and takes the film's own "PRESS START" line off the bottom of the crop, which
+   matters because the game offers four modes rather than one start. */
+.titlebg i{position:absolute;left:0;right:0;top:0;height:64%;background:url(assets/title-bg.jpg) center 52% / cover no-repeat}
+.titlebg i::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(8,10,6,0) 58%,rgba(8,10,6,.72) 86%,#0a0d08 100%)}
+/* On the title screen the card is a wide, short bar along the bottom, so the film's logo in the
+   backdrop above it is the wordmark and nothing covers it. */
+.modal.titlemode .box.wide{max-width:1180px;width:100%;padding:12px 16px 10px;max-height:52vh;overflow-y:auto}
+.modal.titlemode .modes{grid-template-columns:repeat(4,1fr);gap:8px}
+.modal.titlemode .mode{padding:7px 9px}
+.modal.titlemode .mode small{font-size:11px;line-height:1.35}
+.modal.titlemode .mode b{font-size:14px}
+.modal.titlemode h4{margin:8px 0 6px}
+.modal.titlemode .tag{margin:0 0 4px;font-size:14px}
+/* .mode carries a 16px border-image and negative margins, so a tile paints well below its own
+   box; the text under the grid needs clearance from that bleed, not just from the box. */
+.modal.titlemode .box.wide > p.muted{font-size:11px;line-height:1.4;margin:26px 0 8px}
+.modal.titlemode .modes{margin-bottom:4px}
 .titlecard{text-align:center}
 .titlecard h1{font-family:var(--display);font-size:22px;color:var(--ink-amber);margin:6px 0 4px;text-shadow:3px 3px 0 rgba(90,46,20,.35);letter-spacing:2px}
 .titlecard .tag{color:var(--ink-dim);margin:0 0 8px}
@@ -187,6 +209,7 @@ details{color:var(--ink-dim)} summary{cursor:pointer;color:var(--ink)} details u
       <div class="tip" id="tip"></div>
       <div class="advisor" id="advisor"></div>
       <div class="tut" id="tut" hidden></div>
+      <div class="titlebg" id="titlebg" hidden><i></i></div>
       <div class="modal" id="modal" hidden></div>
     </div>
     <aside class="drawer" id="drawer" hidden>
@@ -680,7 +703,7 @@ const newLook=(name)=>{const ni=NAMES.indexOf(name);const f=ni>=0?ni%2===0:Math.
 function newPerson(name,skill,st){const p={id:S.nextId++,name,skill,job:'builder',age:ADULT_DAYS,st:st||{str:1,spd:1,int:1},xp:{str:0,spd:0,int:0},hp:PERSON_HP,wounded:0,skin:rnd(3),look:newLook(name)};
   if(!st){p.st[SKILLBONUS[skill]]+=1;const other=pick(Object.keys(STATS));p.st[other]=Math.min(5,p.st[other]+1);}return p;}
 function newGame(modeId,keepDone){
-  for(const k in anim)delete anim[k];particles.length=0;floaters.length=0;corpses.length=0;mus.ended=null;uiModal=null;confirmMode=null;$('modal').hidden=true;
+  for(const k in anim)delete anim[k];particles.length=0;floaters.length=0;corpses.length=0;mus.ended=null;uiModal=null;$('titlebg').hidden=true;confirmMode=null;$('modal').hidden=true;
   const MD=MODES[modeId];const m=MD.start;
   S={mode:modeId,day:1,hour:6,speed:0,morale:6,res:{wood:Math.round(30*m),scrap:Math.round(16*m),greens:Math.round(24*m),rodents:Math.round(6*m),insects:Math.round(8*m),research:0,hide:0,bone:0},gear:{},craft:[],stats:{kills:0,born:0,hatched:0,crafted:0,gapHeld:0,seen:[],met:[]},breed:{},
      tiles:{},queue:[],open:['core'],walls:{N:{lvl:0,hp:0},E:{lvl:0,hp:0},S:{lvl:0,hp:0},W:{lvl:0,hp:0}},gates:{},towers:{},
@@ -1622,7 +1645,7 @@ function showOpening(){
   const finish=()=>{if(done)return;done=true;
     vid.pause();ov.remove();
     if(OPENING.useVideoAudio)ac();
-    uiModal=null;showTitle();};              // the track is already looping; showTitle leaves it alone
+    uiModal=null;$('titlebg').hidden=true;showTitle();};              // the track is already looping; showTitle leaves it alone
   const gate=()=>{
     if(gated)return;gated=true;
     ac();                                    // unlock audio on the gesture
@@ -1649,24 +1672,25 @@ function showOpening(){
   setTimeout(()=>{if(!gated&&!vid.readyState)finish();},4000);
 }
 function showTitle(){
-  uiModal='title';if(S)pause();$('advisor').hidden=!S;$('tip').hidden=!S;$('drawer').hidden=true;
+  uiModal='title';if(S)pause();$('advisor').hidden=!S;$('tip').hidden=!S;$('drawer').hidden=true;$('titlebg').hidden=false;
   const m=$('modal');m.hidden=false;m.innerHTML='';m.classList.add('titlemode');const box=el('div','box wide titlecard');
-  box.innerHTML=`<h1>ANIMALGEDDON</h1><p class="tag">The mammals turned. Breed, raise, and post the cold-blooded to hold the wall.</p>`;
+  box.innerHTML=`<p class="tag">The mammals turned. Breed, raise, and post the cold-blooded to hold the wall.</p>`;
   const saved=S&&S.started&&!S.over;
-  if(saved){const b=btn(`▶ Continue · day ${S.day}, ${M().name}`,'',()=>{uiModal=null;confirmMode=null;m.hidden=true;render();},'go');box.appendChild(b);}
+  if(saved){const b=btn(`▶ Continue · day ${S.day}, ${M().name}`,'',()=>{uiModal=null;$('titlebg').hidden=true;confirmMode=null;m.hidden=true;render();},'go');box.appendChild(b);}
   box.appendChild(el('h4','','NEW GAME · PICK A MODE'));
   const modes=el('div','modes');
   Object.entries(MODES).forEach(([id,md])=>{const c=el('div','mode'+(confirmMode===id?' sel':''),`<b>${md.em} ${md.name}</b><small>${md.desc}</small><small>Start ×${md.start} · hordes ×${md.horde} every ${md.every} days · ${md.people} people, ${md.animals} animals</small>`);
-    c.onclick=()=>{ac();if(saved){confirmMode=id;showTitle();return;}const keep=S&&S.done?S.done.slice():[];uiModal=null;newGame(id,keep);closeDrawer();};modes.appendChild(c);});
+    c.onclick=()=>{ac();if(saved){confirmMode=id;showTitle();return;}const keep=S&&S.done?S.done.slice():[];uiModal=null;$('titlebg').hidden=true;newGame(id,keep);closeDrawer();};modes.appendChild(c);});
   box.appendChild(modes);
   if(confirmMode&&saved){const r=el('div','row');r.style.justifyContent='center';r.appendChild(el('span','warn',`Start a new ${MODES[confirmMode].name} game? Your day ${S.day} ${M().name} game will be replaced${M().keep?' (research carries over)':''}.`));
-    r.appendChild(btn('Yes, start over','',()=>{ac();const keep=S.done.slice();const id=confirmMode;confirmMode=null;uiModal=null;newGame(id,keep);closeDrawer();},'go'));r.appendChild(btn('Keep my game','',()=>{confirmMode=null;showTitle();}));box.appendChild(r);}
+    r.appendChild(btn('Yes, start over','',()=>{ac();const keep=S.done.slice();const id=confirmMode;confirmMode=null;uiModal=null;$('titlebg').hidden=true;newGame(id,keep);closeDrawer();},'go'));r.appendChild(btn('Keep my game','',()=>{confirmMode=null;showTitle();}));box.appendChild(r);}
   const r2=el('div','row');r2.style.justifyContent='center';
   const imp=el('input');imp.type='file';imp.accept='.json,application/json';imp.hidden=true;imp.onchange=()=>{if(imp.files[0])importSave(imp.files[0]);};box.appendChild(imp);
   r2.appendChild(btn('Load a save file','',()=>imp.click(),'sm'));if(S)r2.appendChild(btn('Download save','',()=>exportSave(),'sm'));
-  box.appendChild(r2);
   box.appendChild(el('p','muted','Progress saves in this browser automatically. Download a save to keep it or move it to another device. A lost base keeps its research on every mode but Animalgeddon.'));
-  const cr=el('p','muted','Music ©2025 Retro Indie Josh · CC BY 4.0 · animals Riclmbr · icons Franuka · UI ToffeeCraft · ');const cl=btn('Credits','',()=>showCredits(),'sm');const tb=btn(`Trophies ${Object.keys(TROPH).length}/${TROPHIES.length}`,'',()=>showTrophies(),'sm');cr.appendChild(tb);cr.appendChild(document.createTextNode(' '));cr.appendChild(cl);box.appendChild(cr);
+  const cl=btn('Credits','',()=>showCredits(),'sm');const tb=btn(`Trophies ${Object.keys(TROPH).length}/${TROPHIES.length}`,'',()=>showTrophies(),'sm');
+  r2.appendChild(tb);r2.appendChild(cl);box.appendChild(r2);
+  box.appendChild(el('p','muted','Music ©2025 Retro Indie Josh · CC BY 4.0 · animals Riclmbr · icons Franuka · UI ToffeeCraft'));
   m.appendChild(box);
 }
 function showMenu(){
@@ -1674,8 +1698,8 @@ function showMenu(){
   const m=$('modal');m.hidden=false;m.innerHTML='';const box=el('div','box');
   box.innerHTML=`<h3>${ico('settings')}MENU</h3><p class="muted">Day ${S.day}, ${season().em} ${season().n} · ${M().em} ${M().name} · ${S.people.length} people, ${S.creatures.length} animals</p>`;
   const list=el('div','menu');
-  list.appendChild(btn('▶ Resume','',()=>{uiModal=null;m.hidden=true;setSpeed(1);render();},'go'));
-  list.appendChild(btn('Save now','progress saves automatically in this browser',()=>{save();floater(cv.width/2,cv.height/2,'saved','#8fd45c');uiModal=null;$('modal').hidden=true;render();}));
+  list.appendChild(btn('▶ Resume','',()=>{uiModal=null;$('titlebg').hidden=true;m.hidden=true;setSpeed(1);render();},'go'));
+  list.appendChild(btn('Save now','progress saves automatically in this browser',()=>{save();floater(cv.width/2,cv.height/2,'saved','#8fd45c');uiModal=null;$('titlebg').hidden=true;$('modal').hidden=true;render();}));
   list.appendChild(btn('Download save file','a copy you can keep or load on another device',()=>exportSave()));
   const imp=el('input');imp.type='file';imp.accept='.json,application/json';imp.hidden=true;imp.onchange=()=>{if(imp.files[0])importSave(imp.files[0]);};box.appendChild(imp);
   list.appendChild(btn('Load a save file','replaces the current game',()=>imp.click()));
@@ -1724,12 +1748,12 @@ function showTrophies(){
   const r=el('div','row');r.appendChild(btn('← Back','',()=>{if(S)showMenu();else showTitle();},'go'));box.appendChild(r);m.appendChild(box);
 }
 function showRename(kind,id){uiModal='rename';S.renaming={kind,id};const m=$('modal');m.hidden=false;m.innerHTML='';const box=el('div','box');
-  const obj=kind==='person'?S.people.find(p=>p.id===id):S.creatures.find(c=>c.id===id);if(!obj){uiModal=null;m.hidden=true;return;}
+  const obj=kind==='person'?S.people.find(p=>p.id===id):S.creatures.find(c=>c.id===id);if(!obj){uiModal=null;$('titlebg').hidden=true;m.hidden=true;return;}
   box.innerHTML=`<h3>${ico(kind==='person'?'people':'animals')}RENAME</h3><p>${kind==='person'?`${obj.name}, ${obj.skill.toLowerCase()}`:`${obj.name||''} the ${SPECIES[obj.sp].name.toLowerCase()}`}. Pick a new name (up to 14 letters).</p>`;
   const inp=document.createElement('input');inp.type='text';inp.maxLength=14;inp.value=obj.name||'';inp.className='rename';box.appendChild(inp);
-  const r=el('div','row');const ok=()=>{const v=inp.value.trim().slice(0,14);if(v){obj.name=v;log(`${kind==='person'?'Renamed':'The animal is now called'} ${v}.`,'d');}uiModal=null;S.renaming=null;m.hidden=true;save();render();};
-  r.appendChild(btn('Save','',ok,'go'));r.appendChild(btn('Cancel','',()=>{uiModal=null;S.renaming=null;m.hidden=true;render();}));box.appendChild(r);m.appendChild(box);
-  inp.onkeydown=e=>{if(e.key==='Enter')ok();if(e.key==='Escape'){uiModal=null;S.renaming=null;m.hidden=true;render();}e.stopPropagation();};setTimeout(()=>{inp.focus();inp.select();},30);}
+  const r=el('div','row');const ok=()=>{const v=inp.value.trim().slice(0,14);if(v){obj.name=v;log(`${kind==='person'?'Renamed':'The animal is now called'} ${v}.`,'d');}uiModal=null;$('titlebg').hidden=true;S.renaming=null;m.hidden=true;save();render();};
+  r.appendChild(btn('Save','',ok,'go'));r.appendChild(btn('Cancel','',()=>{uiModal=null;$('titlebg').hidden=true;S.renaming=null;m.hidden=true;render();}));box.appendChild(r);m.appendChild(box);
+  inp.onkeydown=e=>{if(e.key==='Enter')ok();if(e.key==='Escape'){uiModal=null;$('titlebg').hidden=true;S.renaming=null;m.hidden=true;render();}e.stopPropagation();};setTimeout(()=>{inp.focus();inp.select();},30);}
 function showCredits(){
   uiModal='credits';const m=$('modal');m.hidden=false;m.innerHTML='';const box=el('div','box');
   box.innerHTML=`<h3>${ico('music')}CREDITS</h3><p><b>Animalgeddon</b> — design and direction by Alex Escar. Built with Claude.</p>
@@ -1760,9 +1784,9 @@ function showSettings(){
   m.appendChild(box);
 }
 document.addEventListener('pointerdown',()=>{if(!AC){ac();preloadMusic();setTimeout(updateMusic,50);}},{capture:true});
-$('menuBtn').onclick=()=>{ac();if(uiModal==='menu'){uiModal=null;$('modal').hidden=true;render();}else showMenu();};
+$('menuBtn').onclick=()=>{ac();if(uiModal==='menu'){uiModal=null;$('titlebg').hidden=true;$('modal').hidden=true;render();}else showMenu();};
 function renderModal(){
-  const m=$('modal');if(!S){showTitle();return;}if(uiModal==='title'){showTitle();return;}if(uiModal==='menu'){showMenu();return;}if(uiModal==='settings'){showSettings();return;}if(uiModal==='credits'){showCredits();return;}if(uiModal==='trophies'){showTrophies();return;}if(uiModal==='rename'){if(S.renaming)showRename(S.renaming.kind,S.renaming.id);else{uiModal=null;}return;}
+  const m=$('modal');if(!S){showTitle();return;}if(uiModal==='title'){showTitle();return;}if(uiModal==='menu'){showMenu();return;}if(uiModal==='settings'){showSettings();return;}if(uiModal==='credits'){showCredits();return;}if(uiModal==='trophies'){showTrophies();return;}if(uiModal==='rename'){if(S.renaming)showRename(S.renaming.kind,S.renaming.id);else{uiModal=null;$('titlebg').hidden=true;}return;}
   if(!S.alerts.length&&!S.over){m.hidden=true;return;}m.hidden=false;m.innerHTML='';
   if(S.over&&!S.alerts.length){const box=el('div','box bad',`<h3>THE BASE IS OVERRUN</h3><p>Day ${S.day} on ${M().name}. ${M().keep?'Research carries over.':'Nothing carries over on Animalgeddon.'}</p>`);box.appendChild(btn('Title screen','',()=>{confirmMode=null;showTitle();},'go'));m.appendChild(box);return;}
   const a=S.alerts[0];const box=el('div','box '+(a.cls||''),`<h3>${a.title}</h3><p>${a.body}</p>`);
@@ -1793,14 +1817,14 @@ async function exportSave(){if(!S)return;const name=`animalgeddon-day${S.day}-${
   let dl=null;try{if(window.claude&&claude.use)dl=await claude.use('downloads');}catch(e){}
   if(dl){try{await dl.save({filename:name,data});floater(cv.width/2,cv.height/2,'save downloaded','#8fd45c');}catch(e){if(e&&e.code!=='declined')floater(cv.width/2,cv.height/2,'download unavailable here','#ff6b5c');}return;}
   try{const blob=new Blob([data],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);}catch(e){}}
-function importSave(file){const r=new FileReader();r.onload=()=>{try{const s=JSON.parse(r.result);if(!(s&&s.tiles&&s.walls&&s.people&&s.mode))throw 0;for(const k in anim)delete anim[k];S=migrate(s);S.alerts=[];uiModal=null;save();render();log('Save file loaded.','s');}catch(e){alert('That file is not an Animalgeddon save.');}};r.readAsText(file);}
+function importSave(file){const r=new FileReader();r.onload=()=>{try{const s=JSON.parse(r.result);if(!(s&&s.tiles&&s.walls&&s.people&&s.mode))throw 0;for(const k in anim)delete anim[k];S=migrate(s);S.alerts=[];uiModal=null;$('titlebg').hidden=true;save();render();log('Save file loaded.','s');}catch(e){alert('That file is not an Animalgeddon save.');}};r.readAsText(file);}
 function load(){try{muted=localStorage.getItem('animalgeddon-muted')==='1';const s=JSON.parse(localStorage.getItem('animalgeddon-v12'));if(s&&s.tiles&&s.walls&&s.people&&s.alerts&&s.mode)return s;}catch(e){}return null;}
 
 [0,1,2,4].forEach(n=>$('sp'+n).onclick=()=>{ac();if(!S||uiModal||(n>0&&S.alerts.length))return;setSpeed(n);});
 $('mute').onclick=()=>{muted=!muted;ac();renderHud();save();updateMusic();};
 document.addEventListener('keydown',e=>{
   if(e.target.closest('input,textarea,select,button'))return;if(!S)return;ac();
-  if(e.key==='Escape'){if(uiModal==='menu'||uiModal==='settings'||uiModal==='credits'||uiModal==='trophies'){uiModal=null;$('modal').hidden=true;render();}else if(uiModal==='title'){}else if(buildSel){buildSel=null;render();}else if(tab)closeDrawer();else showMenu();return;}
+  if(e.key==='Escape'){if(uiModal==='menu'||uiModal==='settings'||uiModal==='credits'||uiModal==='trophies'){uiModal=null;$('titlebg').hidden=true;$('modal').hidden=true;render();}else if(uiModal==='title'){}else if(buildSel){buildSel=null;render();}else if(tab)closeDrawer();else showMenu();return;}
   if(uiModal)return;
   if(e.key===' '){e.preventDefault();if(S.alerts.length)return;setSpeed(S.speed?0:1);}
   if(e.key==='0'){cam.uz=1;cam.ux=0;cam.uy=0;}
