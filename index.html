@@ -630,7 +630,7 @@ const WALL_LVL=[null,
   {name:'Reinforced wall',cost:{wood:10,scrap:12},bp:10,hp:80,slots:8,req:'walls2'},
   {name:'Iron-banded stone wall',cost:{wood:14,scrap:20,bone:4},bp:14,hp:130,slots:10,req:'stonewalls'}];
 const GATE={cost:{wood:4,scrap:2},bp:3}, TOWER={cost:{wood:5,scrap:4},bp:5};
-const GUARD_RANGE=T*2.5, GUARD_TOWER_RANGE=T*4;
+const GUARD_RANGE=T*2.5, GUARD_TOWER_RANGE=T*2.5, GUARD_WALL_REACH=T*1.3;   // a guard shoots what is at the wall (within 1.3 tiles of it) if he is within 2.5 tiles of the fight; a tower lets him reach 2.5 tiles out from the wall
 const nearWall=e=>{const w=S.walls[e.dir];if(!w||!w.lvl)return false;const [x,y,ww,hh]=wallRect(e.dir);return e.x>x-T&&e.x<x+ww+T&&e.y>y-T&&e.y<y+hh+T;};   // how far a guard's shot carries, from the ground and from a watchtower
 function towerPos(dir){const [x,y,ww,hh]=wallRect(dir);return ww>hh?{x:x+ww/2,y:dir==='N'?y+hh+28:y-28}:{x:dir==='E'?x-28:x+ww+28,y:y+hh/2};}
 const DIRS={N:'North',E:'East',S:'South',W:'West'};
@@ -1173,13 +1173,15 @@ function updateBattle(dt){
     if(s.ab==='constrict'){target.heldT=0.3;if(!target.held){target.held=true;floater(target.x,target.y-22,'constricted','#c58cff');}}
     if(s.ab==='blind'&&c.cd<=0){c.cd=6;target.blind=3;floater(target.x,target.y-22,'blinded','#f0b64a');particles.push({x:a.x,y:a.y,vx:(target.x-a.x)*4,vy:(target.y-a.y)*4,t:0,life:0.25,col:'#8fd45c'});}
     if(target.hp<=0){c.kills=(c.kills||0)+1;kill(target,cname(c));}});
-  if(hasR('ballista'))B.dirs.forEach(d=>{if(!S.towers[d])return;const tp=towerPos(d);let best=null,bd=GUARD_TOWER_RANGE;B.enemies.forEach(e=>{if(e.dead||e.inside)return;const dd=Math.hypot(e.x-tp.x,e.y-tp.y);if(dd<bd){bd=dd;best=e;}});if(best){hitEnemy(best,1.2*dt);if(Math.random()<dt*0.8)particles.push({x:tp.x,y:tp.y-10,vx:(best.x-tp.x)*2.5,vy:(best.y-tp.y+10)*2.5,t:0,life:0.4,col:'#e9f0dc',g:0,s:2});if(best.hp<=0)kill(best,'the ballista');}});
+  if(hasR('ballista'))B.dirs.forEach(d=>{if(!S.towers[d])return;const tp=towerPos(d);let best=null,bd=GUARD_TOWER_RANGE+T;B.enemies.forEach(e=>{if(e.dead||e.inside)return;const dd=Math.hypot(e.x-tp.x,e.y-tp.y);if(dd<bd){bd=dd;best=e;}});if(best){hitEnemy(best,1.2*dt);if(Math.random()<dt*0.8)particles.push({x:tp.x,y:tp.y-10,vx:(best.x-tp.x)*2.5,vy:(best.y-tp.y+10)*2.5,t:0,life:0.4,col:'#e9f0dc',g:0,s:2});if(best.hp<=0)kill(best,'the ballista');}});
   // guards shoot what they can reach: 2.5 tiles from where they stand, or 4 tiles from a watchtower at the front
   // being attacked (they fire from it), where a shot also hits half again as hard
   guardsP.forEach(p=>{const live=B.enemies.filter(e=>!e.dead);if(!live.length)return;const a=anim[p.id];if(!a)return;
-    let target=null,bd=1e9,fromTower=false;for(const e of live){let d=Math.hypot(e.x-a.x,e.y-a.y),tw=false;if(!e.inside&&S.towers[e.dir]){const tp=towerPos(e.dir);const d2=Math.hypot(e.x-tp.x,e.y-tp.y);if(d2<=GUARD_TOWER_RANGE&&(d2<d||d>GUARD_RANGE)){d=d2;tw=true;}}
-      if(d<=(tw?GUARD_TOWER_RANGE:GUARD_RANGE)&&d<bd){bd=d;target=e;fromTower=tw;}}
-    if(!target)return;hitEnemy(target,(0.4+p.st.str/5+gpEff*0.4+(hasPerk('deadeye')?0.4:0))*(fromTower?1.5:1)*dt);a.shot=target;if(Math.random()<dt*1.5)sfx('shot');
+    // what counts as "at the wall": inside the base, or within reach of the wall line of its own front (further with a tower there)
+    const wallDist=e=>{const [x,y,ww,hh]=wallRect(e.dir);const cx=Math.max(x,Math.min(x+ww,e.x)),cy=Math.max(y,Math.min(y+hh,e.y));return Math.hypot(e.x-cx,e.y-cy);};
+    let target=null,bd=1e9,fromTower=false;for(const e of live){const tw=!e.inside&&!!S.towers[e.dir];const reach=e.inside?1e9:tw?GUARD_TOWER_RANGE:GUARD_WALL_REACH;if(!e.inside&&wallDist(e)>reach)continue;
+      const d=tw?Math.hypot(e.x-towerPos(e.dir).x,e.y-towerPos(e.dir).y):Math.hypot(e.x-a.x,e.y-a.y);if(d>(tw?GUARD_TOWER_RANGE+T:GUARD_RANGE))continue;if(d<bd){bd=d;target=e;fromTower=tw;}}
+    if(!target)return;hitEnemy(target,(0.3+p.st.str/6+gpEff*0.3+(hasPerk('deadeye')?0.3:0))*(fromTower?1.4:1)*dt);a.shot=target;if(Math.random()<dt*1.5)sfx('shot');
     if(target.hp<=0){kill(target,p.name);}});
   S.creatures.filter(c=>c.hp<=0).forEach(c=>{B.lost.push(cname(c));ticker(`${cname(c)} fell at the ${DIRS[c.front].toLowerCase()} wall`);const a=anim[c.id];if(a){puff(a.x,a.y,'#ff6b5c',6,40);corpse(c.sp,a.x,a.y+8,a.face);}log(`${cname(c)} fell at the ${DIRS[c.front].toLowerCase()} wall.`,'e');sfx('hurt');});
   S.creatures=S.creatures.filter(c=>c.hp>0);
@@ -1195,7 +1197,7 @@ function breach(e){
   if(S.breaches>=3||S.people.length<=1){S.over=true;S.battle=null;pause();sfx('lose');log('The base is overrun.','e');render();}
 }
 function endBattle(){
-  const B=S.battle;S.battle=null;
+  const B=S.battle;S.battle=null;if(cam.battlePan){cam.uz=1;cam.ux=0;cam.uy=0;cam.battlePan=false;}   // a pan taken during the fight eases back out with it
   const wd=Object.entries(B.wallDmg).map(([d,v])=>`${DIRS[d].toLowerCase()} wall -${Math.round(v)}`).join(', ');
   const st=Object.entries(B.stolen).filter(([f,v])=>v>=0.5).map(([f,v])=>`${EM[f]}-${Math.round(v)}`).join(' ');
   if(B.kind==='prowl')S.lastProwl={day:B.started,killed:B.killed,lost:B.lost};else S.lastHorde={day:B.started,dirs:B.dirs,killed:B.killed,lost:B.lost,people:B.people,wounded:B.wounded,wallDmg:wd,stolen:st};
@@ -1268,7 +1270,7 @@ let roadDrag=null;
 cv.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;ac();if(!S||S.over)return;const p=canvasPos(ev);
   if(buildSel==='road'){const cx=Math.floor(p.x/H2),cy=Math.floor(p.y/H2);roadDrag={erase:roadAt(cx,cy),last:null};if(paintRoad(cx,cy,roadDrag.erase))sfx('click');roadDrag.last=cx+','+cy;try{cv.setPointerCapture(ev.pointerId);}catch(e){}return;}
   const c=creatureAt(p);
-  if(!c&&cam.uz>1.001){cam.pan={x:ev.clientX,y:ev.clientY,ux:cam.ux,uy:cam.uy,left:true,moved:false};}
+  if(!c&&(cam.uz>1.001||cam.z>1.001)){if(cam.uz<=1.001){cam.uz=cam.z;cam.ux=cam.tx;cam.uy=cam.ty;cam.battlePan=!!S.battle;}cam.pan={x:ev.clientX,y:ev.clientY,ux:cam.ux,uy:cam.uy,left:true,moved:false};}
   drag={start:p,pos:p,creature:c,moved:false,id:ev.pointerId};try{cv.setPointerCapture(ev.pointerId);}catch(e){}});
 let mouseP={x:0,y:0};
 cv.addEventListener('pointermove',ev=>{const p=canvasPos(ev);mouseP=p;hoverTile=tileFromPos(p);
@@ -1290,7 +1292,7 @@ cv.addEventListener('wheel',ev=>{if(!S)return;ev.preventDefault();const r=cv.get
   const wx=(sx-cam.tx)/cam.z,wy=(sy-cam.ty)/cam.z;const nz=Math.min(3,Math.max(1,cam.uz*(ev.deltaY<0?1.15:1/1.15)));
   if(nz<=1.001){cam.uz=1;cam.ux=0;cam.uy=0;return;}cam.uz=nz;cam.ux=sx-wx*nz;cam.uy=sy-wy*nz;clampCam();if(cam.z<1.01){cam.z=nz;cam.tx=cam.ux;cam.ty=cam.uy;}},{passive:false});
 cv.addEventListener('contextmenu',ev=>ev.preventDefault());
-cv.addEventListener('pointerdown',ev=>{if(ev.button===1||ev.button===2){ev.preventDefault();if(cam.uz<=1.001)return;cam.pan={x:ev.clientX,y:ev.clientY,ux:cam.ux,uy:cam.uy};cv.style.cursor='grabbing';try{cv.setPointerCapture(ev.pointerId);}catch(e){}}},{capture:true});
+cv.addEventListener('pointerdown',ev=>{if(ev.button===1||ev.button===2){ev.preventDefault();if(cam.uz<=1.001){if(cam.z<=1.001)return;cam.uz=cam.z;cam.ux=cam.tx;cam.uy=cam.ty;cam.battlePan=!!S.battle;}cam.pan={x:ev.clientX,y:ev.clientY,ux:cam.ux,uy:cam.uy};cv.style.cursor='grabbing';try{cv.setPointerCapture(ev.pointerId);}catch(e){}}},{capture:true});
 cv.addEventListener('pointermove',ev=>{if(!cam.pan)return;const r=cv.getBoundingClientRect();const k=cv.width/r.width;const ddx=ev.clientX-cam.pan.x,ddy=ev.clientY-cam.pan.y;if(cam.pan.left&&!cam.pan.moved){if(Math.hypot(ddx,ddy)<6)return;cam.pan.moved=true;drag=null;cv.style.cursor='grabbing';}cam.ux=cam.pan.ux+ddx*k;cam.uy=cam.pan.uy+ddy*k;clampCam();cam.tx=cam.ux;cam.ty=cam.uy;},{capture:true});
 cv.addEventListener('pointerup',ev=>{if(cam.pan){const moved=cam.pan.moved||!cam.pan.left;cam.pan=null;cv.style.cursor='pointer';if(moved){drag=null;ev.stopImmediatePropagation();}}},{capture:true});
 cv.addEventListener('pointerleave',()=>{hoverTile=null;updateTip();});
@@ -1350,7 +1352,9 @@ function targetFor(p){
     const edge=spawnPoint(dir,Math.floor(a.seed*3)%4);edge.x+=(dir==='E'?T:dir==='W'?-T:0);edge.y+=(dir==='S'?T*0.6:dir==='N'?-T*0.6:0);
     const home=tileCenter(K(6,5));return out?{x:edge.x,y:edge.y,work:'walk'}:{x:home.x+20,y:home.y+20,work:'walk'};}
   if(p.job==='builder'){const q=S.queue[0];
-    if(q){let c=(q.kind==='tile'||q.kind==='up')?tileCenter(q.key):q.kind==='road'?(()=>{const [cx,cy]=q.key.split(',').map(Number);return {x:cx*H2+H2/2,y:cy*H2+H2/2};})():q.kind==='clear'?sectorCenter(q.dir):wallSpot(q.dir,0,1);const i=inJob('builder').indexOf(p);const o=slotOffset(i);return {x:c.x+o[0],y:c.y+o[1]+8,work:'hammer'};}
+    if(q){const i=inJob('builder').indexOf(p),nb=inJob('builder').length;
+      if(q.kind==='wall'||q.kind==='gate'||q.kind==='tower'){const sp=wallSpot(q.dir,i,nb);return {x:sp.x,y:sp.y,work:'hammer'};}   // spread along the wall, one builder per stretch
+      let c=(q.kind==='tile'||q.kind==='up')?tileCenter(q.key):q.kind==='road'?(()=>{const [cx,cy]=q.key.split(',').map(Number);return {x:cx*H2+H2/2,y:cy*H2+H2/2};})():sectorCenter(q.dir);const o=slotOffset(i);return {x:c.x+o[0],y:c.y+o[1]+8,work:'hammer'};}
     const rep=wallsNeedRepair();if(rep.length&&!S.battle){const i=inJob('builder').indexOf(p);const s=wallSpot(rep[0],i,inJob('builder').length);return {x:s.x,y:s.y,work:'hammer'};}
     const sh=builtOf('shelter')[0]||{x:6,y:5};const c=tileCenter(K(sh.x,sh.y));const i=inJob('builder').indexOf(p);const o=slotOffset(i);return {x:c.x+o[0]*1.6,y:c.y+o[1]+20,work:'idle'};}
   const type=Object.keys(BUILD).find(k=>BUILD[k].job===p.job);const bs=builtOf(type);
@@ -1584,7 +1588,8 @@ function draw(ts){
     const onLoop=c.post==='patrol'&&a.pace&&!(S.battle&&S.battle.enemies.some(e=>e.inside&&!e.dead));
     if(dragging){a.x=tg.x;a.y=tg.y;a.moving=false;}else if(running||!a.init){const px=a.x,py=a.y;moveTo(a,tg,onLoop?a.pace:1.0+SPECIES[c.sp].power*0.1,false,onLoop);a.init=true;a.dx=a.x-px;a.dy=a.y-py;}
     let row='idle';const night=S.hour>=22||S.hour<6;
-    if(dragging)row='scared';else if(a.moving)row=Math.abs(a.dy)>Math.abs(a.dx)*1.4?(a.dy>0?'down':'up'):'walk';else if(a.bite)row='angry';
+    if(c.post==='guard'&&!a.moving&&!dragging){if(c.front==='E')a.face=1;else if(c.front==='W')a.face=-1;}   // posted and standing: look out over the wall
+    if(dragging)row='scared';else if(a.moving)row=Math.abs(a.dy)>Math.abs(a.dx)*1.4?(a.dy>0?'down':'up'):'walk';else if(a.bite)row='angry';else if(c.post==='guard'&&(c.front==='N'||c.front==='S'))row=c.front==='N'?'up':'down';
     else if(c.hunger>0&&Math.floor(a.t/150)%2===0)row='scared';else if(c.post==='pen'&&night)row='sleep';else if(c.post==='pen'&&S.hour<=1)row='graze';
     const frame=running?Math.floor(a.t/(60/AFPS[row]))+c.id:0;const lunge=a.bite&&running?Math.sin(tickA/3)*4*a.face:0;a.bite=0;
     const flip=row!=='down'&&row!=='up'&&a.face>0;
@@ -2000,10 +2005,10 @@ function showTitle(){
   box.appendChild(el('h4','','NEW GAME · PICK A MODE'));
   const modes=el('div','modes');
   Object.entries(MODES).forEach(([id,md])=>{const c=el('div','mode'+(confirmMode===id?' sel':''),`<b>${md.em} ${md.name}</b><small>${md.desc}</small><small>Start ×${md.start} · hordes ×${md.horde} every ${md.every} days · ${md.people} people, ${md.animals} animals</small>`);
-    c.onclick=()=>{ac();if(saved){confirmMode=id;showTitle();return;}const keep=S&&S.done?S.done.slice():[];uiModal=null;$('titlebg').hidden=true;newGame(id,keep);closeDrawer();};modes.appendChild(c);});
+    c.onclick=()=>{ac();if(saved){confirmMode=id;showTitle();return;}const keep=S&&S.over&&S.done?S.done.slice():[];uiModal=null;$('titlebg').hidden=true;newGame(id,keep);closeDrawer();};modes.appendChild(c);});
   box.appendChild(modes);
   if(confirmMode&&saved){const r=el('div','row');r.style.justifyContent='center';r.appendChild(el('span','warn',`Start a new ${MODES[confirmMode].name} game? Your day ${S.day} ${M().name} game will be replaced${M().keep?' (research carries over)':''}.`));
-    r.appendChild(btn('Yes, start over','',()=>{ac();const keep=S.done.slice();const id=confirmMode;confirmMode=null;uiModal=null;$('titlebg').hidden=true;newGame(id,keep);closeDrawer();},'go'));r.appendChild(btn('Keep my game','',()=>{confirmMode=null;showTitle();}));box.appendChild(r);}
+    r.appendChild(btn('Yes, start over','',()=>{ac();const keep=S.over?S.done.slice():[];const id=confirmMode;confirmMode=null;uiModal=null;$('titlebg').hidden=true;newGame(id,keep);closeDrawer();},'go'));r.appendChild(btn('Keep my game','',()=>{confirmMode=null;showTitle();}));box.appendChild(r);}
   const r2=el('div','row');r2.style.justifyContent='center';
   const imp=el('input');imp.type='file';imp.accept='.json,application/json';imp.hidden=true;imp.onchange=()=>{if(imp.files[0])importSave(imp.files[0]);};box.appendChild(imp);
   r2.appendChild(btn('Load a save file','',()=>imp.click(),'sm'));if(S)r2.appendChild(btn('Download save','',()=>exportSave(),'sm'));
