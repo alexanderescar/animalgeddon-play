@@ -334,7 +334,9 @@ function drawBuilding(t,x,y,alpha){const bx=x*T+T/2,by=y*T+T-5;const n=bname(t.t
     if(t.type==='scrapyard'){drawSmoke(bx+(t.lvl>=2?8:0),by-hh+2,t.lvl,0.7,0.8,seed);if(Math.random()<dtReal*4)particles.push({x:bx+(Math.random()-0.5)*8,y:by-hh*0.5,vx:(Math.random()-0.5)*20,vy:-20-Math.random()*20,t:0,life:0.5,col:'#ffb347',g:-6,s:2});}
     if(t.type==='workshop'){const beat=Math.floor(tickA/16);if(tickA%16===0&&beat%2===0)for(let i=0;i<6;i++)particles.push({x:bx+(Math.random()-0.5)*6,y:by-hh*0.45,vx:(Math.random()-0.5)*90,vy:-40-Math.random()*50,t:0,life:0.3+Math.random()*0.2,col:Math.random()<0.6?'#fff3b0':'#ffb347',g:140,s:2});if(t.lvl>=2)drawSmoke(bx+14,by-hh+4,1,0.5,0.7,seed);}
     if(t.type==='lab'&&Math.random()<dtReal*3)particles.push({x:bx+(Math.random()-0.5)*10,y:by-hh*0.6,vx:(Math.random()-0.5)*6,vy:-14-Math.random()*8,t:0,life:0.9,col:'#9fe8c8',g:-4,s:2});}
-  if(t.done&&(t.type==='shelter'||t.type==='hatchery'||t.type==='lab')&&night&&!isNight()&&t.lvl>=2){const g=ctx.createRadialGradient(bx+6,by-hh*0.42,2,bx+6,by-hh*0.42,22);g.addColorStop(0,'rgba(255,205,120,.55)');g.addColorStop(1,'rgba(255,205,120,0)');ctx.fillStyle=g;ctx.fillRect(bx-16,by-hh*0.42-22,44,44);}
+  const nIn=t.type==='shelter'?(INSIDE[K(x,y)]||0):0;
+  if(nIn){const s=`${nIn} inside`;ctx.font='8px "Press Start 2P", monospace';ctx.textAlign='center';const tw=ctx.measureText(s).width+8;ctx.fillStyle='rgba(10,8,6,.7)';ctx.fillRect(Math.round(bx-tw/2),Math.round(by-hh-16),Math.round(tw),13);ctx.fillStyle=S.battle?'#ffd27a':'#e9f0dc';ctx.fillText(s,Math.round(bx),Math.round(by-hh-6));}
+  if(t.done&&(t.type==='shelter'||t.type==='hatchery'||t.type==='lab')&&night&&!isNight()&&t.lvl>=2&&!nIn){const g=ctx.createRadialGradient(bx+6,by-hh*0.42,2,bx+6,by-hh*0.42,22);g.addColorStop(0,'rgba(255,205,120,.55)');g.addColorStop(1,'rgba(255,205,120,0)');ctx.fillStyle=g;ctx.fillRect(bx-16,by-hh*0.42-22,44,44);}
   if(t.done&&t.type==='hatchery'&&S.eggs.length){const n=Math.min(4,S.eggs.length);const nx=bx+a.w*BSC/2-6,ny=by-2;   // a nest beside the door, not a clutch across the doorway
     const ns=BLD['nest'];if(ns){ctx.globalAlpha=alpha;ctx.drawImage(bldImg,ns.x,ns.y,ns.w,ns.h,Math.round(nx-ns.w/2),Math.round(ny-ns.h),ns.w,ns.h);ctx.globalAlpha=1;}
     for(let i=0;i<n;i++){const e=BLD[i%2?'egg_b':'egg_a'];if(!e)continue;const col=i%2,row=i>>1;ctx.globalAlpha=alpha;ctx.drawImage(bldImg,e.x,e.y,e.w,e.h,Math.round(nx-8+col*9+row*4),Math.round(ny-9-row*4),e.w,e.h);ctx.globalAlpha=1;}}
@@ -346,6 +348,16 @@ function drawBuilding(t,x,y,alpha){const bx=x*T+T/2,by=y*T+T-5;const n=bname(t.t
 /* bedrolls on the ground beside a shelter: one per bed up to six; people lie on them at night */
 function bedSpots(t){const n=Math.min(6,LV(t).beds);const out=[];for(let i=0;i<n;i++){const col=i%3,row=Math.floor(i/3);out.push({x:t.x*T+T-12-col*24+(row?-8:0),y:t.y*T+T+4-row*16,tile:K(t.x,t.y)});}return out;}
 const isNight=()=>S.hour>=22||S.hour<5;
+/* the shelter door: people walk to it and step inside to sleep at night, or to hide during a horde */
+/* a shelter with people in it after dark: warm light in the upper windows and spilling out under the door, drawn over the night shade */
+function litShelters(dark){const k=Math.min(1,dark/0.42);ctx.save();ctx.globalCompositeOperation='lighter';
+  for(const t of builtOf('shelter')){if(!INSIDE[K(t.x,t.y)])continue;const a=BLD[bname('shelter',t.lvl)];if(!a)continue;const bx=t.x*T+T/2,by=t.y*T+T-5,hh=Math.round(a.h*BSC),ww=Math.round(a.w*BSC);const flick=0.9+0.1*Math.sin(tickA/7+t.x);
+    for(const wx of [bx-ww*0.28,bx+ww*0.28]){const wy=by-hh*0.3;const g=ctx.createRadialGradient(wx,wy,1,wx,wy,18);g.addColorStop(0,`rgba(255,200,100,${0.8*k*flick})`);g.addColorStop(0.45,`rgba(255,160,60,${0.3*k})`);g.addColorStop(1,'rgba(255,140,40,0)');ctx.fillStyle=g;ctx.fillRect(wx-16,wy-16,32,32);}
+    const g2=ctx.createRadialGradient(bx,by+2,2,bx,by+2,22);g2.addColorStop(0,`rgba(255,180,80,${0.3*k})`);g2.addColorStop(1,'rgba(255,160,60,0)');ctx.fillStyle=g2;ctx.fillRect(bx-22,by-10,44,24);}
+  ctx.restore();}
+function shelterDoor(t){return {x:t.x*T+T/2,y:t.y*T+T-5};}
+let INSIDE={};   // shelter tile key -> how many people are in it right now (filled by the people loop)
+
 function sleepSpots(){const out=[];builtOf('shelter').forEach(t=>out.push(...bedSpots(t)));return out;}
 /* a wall run of tier lvl along rect (x,y,ww,hh); the sprites rise above the 12px strip. gap = [gx,gy,gw,gh] left empty */
 function drawWallRun(dir,lvl,x,y,ww,hh,gap){const h=BLD['wallh_'+lvl],v=BLD['wallv_'+lvl];if(!h||!v||!bldReady)return false;const horiz=ww>hh;
@@ -394,7 +406,7 @@ const lightCv=document.createElement('canvas');lightCv.width=COLS*T;lightCv.heig
 function drawNight(dark,fireT){lctx.globalCompositeOperation='source-over';lctx.clearRect(0,0,lightCv.width,lightCv.height);lctx.fillStyle=`rgba(8,10,34,${dark})`;lctx.fillRect(0,0,lightCv.width,lightCv.height);lctx.globalCompositeOperation='destination-out';
   const punch=(cx,cy,rad,str)=>{const g=lctx.createRadialGradient(cx,cy,2,cx,cy,rad);g.addColorStop(0,`rgba(0,0,0,${str})`);g.addColorStop(.55,`rgba(0,0,0,${str*.45})`);g.addColorStop(1,'rgba(0,0,0,0)');lctx.fillStyle=g;lctx.fillRect(cx-rad,cy-rad,rad*2,rad*2);};
   if(fireT){const flick=1+Math.sin(tickA/5)*0.05+Math.sin(tickA/13)*0.04;punch(fireT.x*T+T/2,fireT.y*T+T/2,Math.min(fireRadius(),5)*T*0.9*flick,0.95);}
-  const awake=!isNight();Object.values(S.tiles).forEach(t=>{if(!t.done)return;if(t.type==='shelter'||t.type==='bughut')punch(t.x*T+T/2,t.y*T+T/2+6,awake?56:30,awake?0.6:0.2);else if(['hatchery','lab','workshop','guardpost'].includes(t.type))punch(t.x*T+T/2,t.y*T+T/2+6,52,t.type==='hatchery'?0.55:awake?0.6:0.35);});
+  const awake=!isNight();Object.values(S.tiles).forEach(t=>{if(!t.done)return;if(t.type==='shelter'&&INSIDE[K(t.x,t.y)])punch(t.x*T+T/2,t.y*T+T/2+6,60,0.6);else if(t.type==='shelter'||t.type==='bughut')punch(t.x*T+T/2,t.y*T+T/2+6,awake?56:30,awake?0.6:0.2);else if(['hatchery','lab','workshop','guardpost'].includes(t.type))punch(t.x*T+T/2,t.y*T+T/2+6,52,t.type==='hatchery'?0.55:awake?0.6:0.35);});
   Object.entries(S.walls).forEach(([d,w])=>{if(S.towers[d]){const [x,y,ww,hh]=wallRect(d);punch(x+ww/2,y+hh/2,70,0.5);}});
   ctx.drawImage(lightCv,0,0);ctx.fillStyle=`rgba(8,10,34,${dark})`;ctx.fillRect(-20,-20,cv.width+40,20);ctx.fillRect(-20,cv.height,cv.width+40,20);ctx.fillRect(-20,0,20,cv.height);ctx.fillRect(cv.width,0,20,cv.height);
   if(fireT){const cx=fireT.x*T+T/2,cy=fireT.y*T+T/2;const g=ctx.createRadialGradient(cx,cy,2,cx,cy,120);g.addColorStop(0,`rgba(255,170,70,${dark*.55})`);g.addColorStop(1,'rgba(255,170,70,0)');ctx.fillStyle=g;ctx.fillRect(cx-120,cy-120,240,240);}}
@@ -1198,11 +1210,14 @@ function sectorCenter(dir){const r=SECTOR[dir];return {x:(r.x0+r.x1+1)/2*T,y:(r.
 function slotOffset(i){return [[-14,8],[14,8],[-14,-10],[14,-10],[0,16],[0,-18]][i%6];}
 function targetFor(p){
   const j=JOBS[p.job];const a=anim[p.id];
+  // night: everyone who is not a guard or in bed goes in through the shelter door, children first; when the beds are full the rest lie on the bedrolls outside
+  if(isNight()&&!S.battle&&p.job!=='guard'&&!p.wounded){const sl=S.people.filter(q=>!q.wounded&&q.job!=='guard').sort((u,v)=>(u.age<ADULT_DAYS?0:1)-(v.age<ADULT_DAYS?0:1)||u.id-v.id);const i=sl.indexOf(p);let k=i;
+    for(const t of builtOf('shelter')){const beds=LV(t).beds;if(k<beds){const d=shelterDoor(t);return {x:d.x+((k%3)-1)*2,y:d.y,work:'sleep',door:K(t.x,t.y)};}k-=beds;}
+    const spots=sleepSpots();if(spots.length){const b=spots[k%spots.length];return {x:b.x,y:b.y-6,work:'sleep'};}}
   if(p.age<ADULT_DAYS||p.wounded){const sh=builtOf('shelter')[0];const c=sh?tileCenter(K(sh.x,sh.y)):{x:6*T,y:5*T};return {x:c.x+Math.sin(a.seed+a.t/90)*(p.wounded?6:20),y:c.y+14+Math.cos(a.seed+a.t/70)*(p.wounded?3:10),work:p.wounded?'rest':'wander'};}
   if(!j)return null;
   // the horn sounds: everyone who is not a guard drops their tools and runs for the shelter
-  if(S.battle&&p.job!=='guard'){const sh=builtOf('shelter');const c=sh.length?tileCenter(K(sh[0].x,sh[0].y)):hatcheryPos();const i=S.people.indexOf(p);return {x:c.x+((i%4)-1.5)*14,y:c.y+16+Math.floor(i/4)*8,work:'hide'};}
-  if(isNight()&&p.job!=='guard'&&!S.battle){const sl=S.people.filter(q=>q.age>=ADULT_DAYS&&!q.wounded&&q.job!=='guard');const spots=sleepSpots();if(spots.length){const b=spots[sl.indexOf(p)%spots.length];return {x:b.x,y:b.y-6,work:'sleep'};}}
+  if(S.battle&&p.job!=='guard'){const sh=builtOf('shelter');const i=S.people.indexOf(p);if(sh.length){const t=sh[i%sh.length];const d=shelterDoor(t);return {x:d.x+((i%3)-1)*2,y:d.y,work:'hide',door:K(t.x,t.y)};}const c=hatcheryPos();return {x:c.x+((i%4)-1.5)*14,y:c.y+16+Math.floor(i/4)*8,work:'hide'};}
   if(p.job==='scout'){const ph=(a.t/500+a.seed)%1;const out=ph<0.5;const g=Object.keys(S.gates).find(d=>S.gates[d]);const dir=g||['E','N','S','W'][Math.floor(a.seed)%4];
     const edge=spawnPoint(dir,Math.floor(a.seed*3)%4);edge.x+=(dir==='E'?T:dir==='W'?-T:0);edge.y+=(dir==='S'?T*0.6:dir==='N'?-T*0.6:0);
     const home=tileCenter(K(6,5));return out?{x:edge.x,y:edge.y,work:'walk'}:{x:home.x+20,y:home.y+20,work:'walk'};}
@@ -1413,19 +1428,21 @@ function draw(ts){
     ctx.fillStyle='#ff3b3b';ctx.globalAlpha=.5+pulse*.5;ctx.fillRect(Math.round(e.x)-1,Math.round(e.y)-32-(E.fly?12:0),3,3);ctx.globalAlpha=1;
     hpBar(Math.round(e.x),Math.round(e.y)-28-(E.fly?12:0),e.hp,e.maxhp,20);}});});
   for(let i=corpses.length-1;i>=0;i--){const q=corpses[i];if(running)q.t+=dtReal;if(q.t>1.9){corpses.splice(i,1);continue;}const f=Math.min(5,Math.floor(q.t/0.3));DQ.push({y:q.y+7,fn:()=>{if(ENEMIES.sets[q.name]){const E=ENEMY[q.name];const fr=ENEMIES.sets[q.name].anims.death.side;espr(q.name,'death','side',Math.min(fr.length-1,Math.floor(q.t/0.22)),q.x,q.y+8,q.face<0,E&&E.fly?0.8:1.15,q.t>1.5?1-(q.t-1.5)/0.4:1);}else aspr(q.name,'death',f,q.x,q.y+8,q.face>0,1.5*((ENEMY[q.name]||ENEMY[q.name.split('_')[0]]||{}).scale||1),q.t>1.5?1-(q.t-1.5)/0.4:1);}});}
-  for(const k in WORKED)delete WORKED[k];
+  for(const k in WORKED)delete WORKED[k];const inside={};
   S.people.forEach(p=>{const start=tileCenter(K(6,5));const a=ensureAnim(p.id,start.x,start.y);const tg=targetFor(p);
     if(running||!a.init){stepAnim(a,tg,(tg&&tg.work==='hide'?2.6:1.6)+(p.st?p.st.spd*0.15:0));a.init=true;}
     if(tg&&tg.at&&!a.moving&&tg.work!=='idle'&&!p.wounded)WORKED[tg.at]=p.job;
+    // at the door and not walking: step inside. The anim keeps its spot, so in the morning they come back out of the same door
+    a.inside=(tg&&tg.door&&!a.moving&&Math.hypot(a.x-tg.x,a.y-tg.y)<3)?tg.door:null;if(a.inside){inside[a.inside]=(inside[a.inside]||0)+1;return;}
     if(!S.battle)a.shot=null;DQ.push({y:a.y+28,fn:()=>{drawPerson(a,p,tg?tg.work:'idle');
-    if(p.job==='guard'&&!p.wounded&&S.battle)hpBar(Math.round(a.x),Math.round(a.y)-20,p.hp,PERSON_HP);}});});
+    if(p.job==='guard'&&!p.wounded&&S.battle)hpBar(Math.round(a.x),Math.round(a.y)-20,p.hp,PERSON_HP);}});});INSIDE=inside;
   DQ.sort((u,v)=>u.y-v.y).forEach(d=>d.fn());
   for(let i=particles.length-1;i>=0;i--){const q=particles[i];if(running){q.t+=dtReal;q.x+=q.vx*dtReal;q.y+=q.vy*dtReal;q.vy+=(q.g==null?60:q.g)*dtReal;}if(q.t>q.life){particles.splice(i,1);continue;}ctx.globalAlpha=1-q.t/q.life;ctx.fillStyle=q.col;const qs=q.s||3;ctx.fillRect(Math.round(q.x),Math.round(q.y),qs,qs);ctx.globalAlpha=1;}
   for(let i=floaters.length-1;i>=0;i--){const f=floaters[i];f.t+=dtReal;if(f.t>1.4){floaters.splice(i,1);continue;}ctx.globalAlpha=1-f.t/1.4;ctx.fillStyle=f.col;ctx.font='8px "Press Start 2P", monospace';ctx.textAlign='center';ctx.fillText(f.text,Math.round(f.x),Math.round(f.y-f.t*20));ctx.globalAlpha=1;}
   if(windy()&&bldReady&&CFG.fx){for(let i=0;i<(windy()===2?6:3);i++){const w=BLD['wind_'+(i%3)];if(!w)break;const sp=1.6+i*0.3;const x=((tickA*sp+i*397)%(cv.width+300))-200,y=60+((i*173)%(cv.height-120));ctx.globalAlpha=0.3+0.1*Math.sin(tickA/9+i);ctx.drawImage(bldImg,w.x,w.y,w.w,w.h,Math.round(x),Math.round(y),w.w*1.5,w.h*1.5);}ctx.globalAlpha=1;}
   const hr=S.hour;let dark=hr<5?.42:hr<7?.42-(hr-5)*.21:hr<18?0:hr<21?(hr-18)*.14:.42;if(S.battle)dark=Math.min(dark,.28);
-  if(dark>0&&CFG.fx){drawNight(dark,fireT);}
-  else if(dark>0){ctx.fillStyle=`rgba(8,10,30,${dark})`;ctx.fillRect(-20,-20,cv.width+40,cv.height+40);
+  if(dark>0&&CFG.fx){drawNight(dark,fireT);litShelters(dark);}
+  else if(dark>0){ctx.fillStyle=`rgba(8,10,30,${dark})`;ctx.fillRect(-20,-20,cv.width+40,cv.height+40);litShelters(dark);
     if(fireT){const rad=Math.min(fireRadius(),6)*T;const g=ctx.createRadialGradient(fireT.x*T+H2,fireT.y*T+H2,4,fireT.x*T+H2,fireT.y*T+H2,rad);g.addColorStop(0,`rgba(255,180,80,${dark*.6})`);g.addColorStop(1,'rgba(255,180,80,0)');ctx.fillStyle=g;ctx.fillRect(fireT.x*T-rad,fireT.y*T-rad,T+2*rad,T+2*rad);}}
   const wx=W();
   if(wx==='snow'){for(let i=0;i<40;i++){const sx=(i*137+(running?tickA*0.6:0)+Math.sin(i+tickA/40)*30)%(cv.width+40)-20,sy=(i*91+(running?tickA*1.1:0))%(cv.height+40)-20;ctx.fillStyle='rgba(255,255,255,.7)';ctx.fillRect(sx,sy,2,2);}}
@@ -1918,6 +1935,6 @@ if(savedGame){S=migrate(savedGame);render();showOpening();}
 else{showOpening();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
-window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
+window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
 })();
 </script>
