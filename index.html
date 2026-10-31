@@ -206,7 +206,7 @@ details{color:var(--ink-dim)} summary{cursor:pointer;color:var(--ink)} details u
 
   <div class="main">
     <div class="stage">
-      <canvas id="map" width="1024" height="704" aria-label="Home base"></canvas>
+      <canvas id="map" width="1280" height="880" aria-label="Home base"></canvas>
       <div class="tip" id="tip"></div>
       <div class="advisor" id="advisor"></div>
       <div class="tut" id="tut" hidden></div>
@@ -224,7 +224,7 @@ details{color:var(--ink-dim)} summary{cursor:pointer;color:var(--ink)} details u
 
 <script>
 (function(){
-const COLS=16, ROWS=11, T=64, HOUR_MS=2500;
+const COLS=16, ROWS=11, T=80, H2=T/2, HOUR_MS=2500;   // 80 px tiles: a building drawn at 1.25x fills one tile and stands four people tall
 const cv=document.getElementById('map'), ctx=cv.getContext('2d');
 ctx.imageSmoothingEnabled=false;
 const $=id=>document.getElementById(id);
@@ -302,7 +302,7 @@ const BLD={"guardpost_3":{"x":0,"y":0,"w":58,"h":120},"guardpost_1":{"x":59,"y":
 function bspr(name,x,y,scale=1.25,alpha=1){const a=BLD[name];if(!a||!bldReady)return false;ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(bldImg,a.x,a.y,a.w,a.h,Math.round(x-a.w*scale/2),Math.round(y-a.h*scale),Math.round(a.w*scale),Math.round(a.h*scale));ctx.restore();return true;}
 const bname=(type,lvl)=>BLD[`${type}_${lvl}`]?`${type}_${lvl}`:BLD[`${type}_1`]?`${type}_1`:null;
 const VEGS=['carrot','beet','cabbage','lettuce','cauliflower','broccoli','garlic'];
-const BSC=1.0;/* one art pixel per screen pixel: a 64-wide building fills its tile and no more */const PAD_STONE=new Set(['scrapyard','workshop','lab','guardpost','relay','signal']);
+const BSC=1.25;/* a 64-wide building fills an 80 px tile and no more */const PAD_STONE=new Set(['scrapyard','workshop','lab','guardpost','relay','signal']);
 function drawPad(t,x,y){if(!bldReady||!t.done)return;const a=BLD[PAD_STONE.has(t.type)?'pad_stone':'pad_dirt'];if(!a)return;ctx.globalAlpha=0.8;ctx.drawImage(bldImg,a.x,a.y,a.w,a.h,x*T,y*T+6,T,T-8);ctx.globalAlpha=1;}
 function drawBuilding(t,x,y,alpha){const bx=x*T+T/2,by=y*T+T-5;const n=bname(t.type,t.lvl);if(!n||!bldReady)return false;
   if(t.type==='garden'&&t.done&&hasR('greenhouse')){bspr(t.lvl>=3?'greenhouse_2':'greenhouse_1',bx,by,BSC,alpha);return true;}
@@ -376,8 +376,8 @@ function decoFor(x,y,si){const r=hash2(x*3+1,y*7+si);const list=DECO[si];let acc
 /* ground: 32px sub-tiles of the ToffeeCraft grass island with proper edges against the forest */
 function subOpen(sx,sy){const x=Math.floor(sx/2),y=Math.floor(sy/2);return x>=0&&y>=0&&x<COLS&&y<ROWS&&isOpen(x,y);}
 function drawGrassTile(x,y){for(let j=0;j<2;j++)for(let i=0;i<2;i++){const sx=x*2+i,sy=y*2+j;const up=subOpen(sx,sy-1),dn=subOpen(sx,sy+1),lf=subOpen(sx-1,sy),rt=subOpen(sx+1,sy);const r=hash2(sx,sy);
-  const col=!lf?0:!rt?5:1+Math.floor(r*4),row=!up?0:!dn?5:1+Math.floor((r*7%1)*4);envTile('grass',col,row,x*T+i*32,y*T+j*32);}}
-function drawDirtTile(x,y,piece='dirt'){for(let j=0;j<2;j++)for(let i=0;i<2;i++){const r=hash2(x*2+i+50,y*2+j+50);envTile(piece,Math.floor(r*4),Math.floor((r*7%1)*4),x*T+i*32,y*T+j*32);}}
+  const col=!lf?0:!rt?5:1+Math.floor(r*4),row=!up?0:!dn?5:1+Math.floor((r*7%1)*4);envTile('grass',col,row,x*T+i*H2,y*T+j*H2,H2);}}
+function drawDirtTile(x,y,piece='dirt'){for(let j=0;j<2;j++)for(let i=0;i<2;i++){const r=hash2(x*2+i+50,y*2+j+50);envTile(piece,Math.floor(r*4),Math.floor((r*7%1)*4),x*T+i*H2,y*T+j*H2,H2);}}
 let pathCache={key:'',set:new Set()};
 function pathSet(){const f=fire();const key=S.open.join(',')+'|'+Object.values(S.tiles).filter(t=>t.done).map(t=>t.type+t.x+','+t.y).join(';');if(pathCache.key===key)return pathCache.set;const set=new Set();
   if(f){const fx=f.x*2+1,fy=f.y*2+1;const targets=Object.values(S.tiles).filter(t=>t.done&&!(t.x===f.x&&t.y===f.y)).map(t=>[t.x*2+1,t.y*2+1]);
@@ -387,11 +387,11 @@ function pathSet(){const f=fire();const key=S.open.join(',')+'|'+Object.values(S
 /* animated trees */
 const TREE_ROW={0:4,1:2,2:0,3:1};const PINE={0:'pine_spring',1:'pine_summer',2:'pine_autumn',3:'pine_winter'};
 function drawTree(x,y,r,alpha,running){const si=S?seasonIdx():1;const late=S&&si===2&&seasonDay()<=3;const pine=r>0.62&&r<0.8;const sway=running?tickA:0;
-  if(pine){const im=treeImg(PINE[si]);if(!im.ready)return false;const f=Math.floor((sway/7+r*8))%8;const sc=0.7;ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(im,f*128,0,128,128,Math.round(x-64*sc),Math.round(y-118*sc),128*sc,128*sc);ctx.restore();return true;}
-  const im=treeImg('trees_classical');if(!im.ready)return false;const row=late?3:TREE_ROW[si];const f=Math.floor((sway/6+r*16))%16;ctx.save();ctx.globalAlpha=alpha;if(r*3%1>0.5){ctx.translate(Math.round(x),0);ctx.scale(-1,1);ctx.drawImage(im,f*64,row*64,64,64,-32,Math.round(y-60),64,64);}else ctx.drawImage(im,f*64,row*64,64,64,Math.round(x-32),Math.round(y-60),64,64);ctx.restore();return true;}
+  if(pine){const im=treeImg(PINE[si]);if(!im.ready)return false;const f=Math.floor((sway/7+r*8))%8;const sc=0.7*T/64;ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(im,f*128,0,128,128,Math.round(x-64*sc),Math.round(y-118*sc),128*sc,128*sc);ctx.restore();return true;}
+  const im=treeImg('trees_classical');if(!im.ready)return false;const row=late?3:TREE_ROW[si];const f=Math.floor((sway/6+r*16))%16;ctx.save();ctx.globalAlpha=alpha;const ts=T/64;if(r*3%1>0.5){ctx.translate(Math.round(x),0);ctx.scale(-1,1);ctx.drawImage(im,f*64,row*64,64,64,-32*ts,Math.round(y-60*ts),64*ts,64*ts);}else ctx.drawImage(im,f*64,row*64,64,64,Math.round(x-32*ts),Math.round(y-60*ts),64*ts,64*ts);ctx.restore();return true;}
 /* lighting */
-const lightCv=document.createElement('canvas');lightCv.width=1024;lightCv.height=704;const lctx=lightCv.getContext('2d');
-function drawNight(dark,fireT){lctx.globalCompositeOperation='source-over';lctx.clearRect(0,0,1024,704);lctx.fillStyle=`rgba(8,10,34,${dark})`;lctx.fillRect(0,0,1024,704);lctx.globalCompositeOperation='destination-out';
+const lightCv=document.createElement('canvas');lightCv.width=COLS*T;lightCv.height=ROWS*T;const lctx=lightCv.getContext('2d');
+function drawNight(dark,fireT){lctx.globalCompositeOperation='source-over';lctx.clearRect(0,0,lightCv.width,lightCv.height);lctx.fillStyle=`rgba(8,10,34,${dark})`;lctx.fillRect(0,0,lightCv.width,lightCv.height);lctx.globalCompositeOperation='destination-out';
   const punch=(cx,cy,rad,str)=>{const g=lctx.createRadialGradient(cx,cy,2,cx,cy,rad);g.addColorStop(0,`rgba(0,0,0,${str})`);g.addColorStop(.55,`rgba(0,0,0,${str*.45})`);g.addColorStop(1,'rgba(0,0,0,0)');lctx.fillStyle=g;lctx.fillRect(cx-rad,cy-rad,rad*2,rad*2);};
   if(fireT){const flick=1+Math.sin(tickA/5)*0.05+Math.sin(tickA/13)*0.04;punch(fireT.x*T+T/2,fireT.y*T+T/2,Math.min(fireRadius(),5)*T*0.9*flick,0.95);}
   const awake=!isNight();Object.values(S.tiles).forEach(t=>{if(!t.done)return;if(t.type==='shelter'||t.type==='bughut')punch(t.x*T+T/2,t.y*T+T/2+6,awake?56:30,awake?0.6:0.2);else if(['hatchery','lab','workshop','guardpost'].includes(t.type))punch(t.x*T+T/2,t.y*T+T/2+6,52,t.type==='hatchery'?0.55:awake?0.6:0.35);});
@@ -1331,8 +1331,8 @@ function draw(ts){
     if(road)drawDirtTile(x,y);else drawGrassTile(x,y);
     const bt=tileAt(x,y);if(bt)drawPad(bt,x,y);
   }
-  if(fx&&paths.size){const P=new Path2D();for(const k of paths){const [sx,sy]=k.split(',').map(Number);const cx=sx*32+16,cy=sy*32+16;P.moveTo(cx+13,cy);P.arc(cx,cy,13,0,Math.PI*2);if(paths.has((sx+1)+','+sy))P.rect(cx,cy-11,32,22);if(paths.has(sx+','+(sy+1)))P.rect(cx-11,cy,22,32);}
-    ctx.save();ctx.clip(P);for(const k of paths){const [sx,sy]=k.split(',').map(Number);if(!subOpen(sx,sy))continue;const rr=hash2(sx+90,sy+90);envTile('sand',Math.floor(rr*4),Math.floor((rr*7%1)*4),sx*32-2,sy*32-2,36,0.62);}ctx.restore();}
+  if(fx&&paths.size){const P=new Path2D();for(const k of paths){const [sx,sy]=k.split(',').map(Number);const cx=sx*H2+H2/2,cy=sy*H2+H2/2;const pr=H2*0.4;P.moveTo(cx+pr,cy);P.arc(cx,cy,pr,0,Math.PI*2);if(paths.has((sx+1)+','+sy))P.rect(cx,cy-pr+2,H2,pr*2-4);if(paths.has(sx+','+(sy+1)))P.rect(cx-pr+2,cy,pr*2-4,H2);}
+    ctx.save();ctx.clip(P);for(const k of paths){const [sx,sy]=k.split(',').map(Number);if(!subOpen(sx,sy))continue;const rr=hash2(sx+90,sy+90);envTile('sand',Math.floor(rr*4),Math.floor((rr*7%1)*4),sx*H2-2,sy*H2-2,H2+4,0.62);}ctx.restore();}
   if(snowy){ctx.fillStyle=`rgba(236,240,250,${W()==='snow'?0.42:0.3})`;for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(isOpen(x,y))ctx.fillRect(x*T,y*T,T,T);}
   // pass 2: forest trees (row by row so lower trees overlap upper ones) and ground decorations
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
@@ -1343,7 +1343,7 @@ function draw(ts){
         // jitter can throw a piece onto a building's tile or onto its doorstep, where rocks and
         // stumps read as rubble someone left in the entrance; keep that strip clear
         const tx=Math.floor(px/T),ty=Math.floor(py/T),doorstep=py-ty*T<24&&tileAt(tx,ty-1);
-        if(!tileAt(tx,ty)&&!doorstep&&!paths.has(Math.floor(px/32)+','+Math.floor(py/32)))envPiece(d[0],px,py,d[2],1,hash2(x+7,y+9)>0.5);}}
+        if(!tileAt(tx,ty)&&!doorstep&&!paths.has(Math.floor(px/H2)+','+Math.floor(py/H2)))envPiece(d[0],px,py,d[2],1,hash2(x+7,y+9)>0.5);}}
     else if(fx&&!tileAt(x,y)&&snowy&&hash2(x+200,y+200)<0.25){const d=decoFor(x,y,3);envPiece(d[0],x*T+T/2+(hash2(x+300,y)-0.5)*30,y*T+T/2+16,d[2]);}
   }
   const DQ=[];  // everything that stands on the ground, drawn back to front by its base line
@@ -1426,10 +1426,10 @@ function draw(ts){
   const hr=S.hour;let dark=hr<5?.42:hr<7?.42-(hr-5)*.21:hr<18?0:hr<21?(hr-18)*.14:.42;if(S.battle)dark=Math.min(dark,.28);
   if(dark>0&&CFG.fx){drawNight(dark,fireT);}
   else if(dark>0){ctx.fillStyle=`rgba(8,10,30,${dark})`;ctx.fillRect(-20,-20,cv.width+40,cv.height+40);
-    if(fireT){const rad=Math.min(fireRadius(),6)*T;const g=ctx.createRadialGradient(fireT.x*T+32,fireT.y*T+32,4,fireT.x*T+32,fireT.y*T+32,rad);g.addColorStop(0,`rgba(255,180,80,${dark*.6})`);g.addColorStop(1,'rgba(255,180,80,0)');ctx.fillStyle=g;ctx.fillRect(fireT.x*T-rad,fireT.y*T-rad,T+2*rad,T+2*rad);}}
+    if(fireT){const rad=Math.min(fireRadius(),6)*T;const g=ctx.createRadialGradient(fireT.x*T+H2,fireT.y*T+H2,4,fireT.x*T+H2,fireT.y*T+H2,rad);g.addColorStop(0,`rgba(255,180,80,${dark*.6})`);g.addColorStop(1,'rgba(255,180,80,0)');ctx.fillStyle=g;ctx.fillRect(fireT.x*T-rad,fireT.y*T-rad,T+2*rad,T+2*rad);}}
   const wx=W();
   if(wx==='snow'){for(let i=0;i<40;i++){const sx=(i*137+(running?tickA*0.6:0)+Math.sin(i+tickA/40)*30)%(cv.width+40)-20,sy=(i*91+(running?tickA*1.1:0))%(cv.height+40)-20;ctx.fillStyle='rgba(255,255,255,.7)';ctx.fillRect(sx,sy,2,2);}}
-  if(wx==='rain'&&CFG.fx){for(let i=0;i<14;i++){const px=(hash2(i,77)*COLS)|0,py=(hash2(77,i)*ROWS)|0;if(!isOpen(px,py)||tileAt(px,py))continue;const cx=px*T+16+hash2(i,5)*32,cy=py*T+20+hash2(5,i)*28;ctx.fillStyle='rgba(120,150,200,.28)';ctx.beginPath();ctx.ellipse(cx,cy,14+hash2(i,9)*10,6+hash2(9,i)*4,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='rgba(220,235,255,.25)';ctx.fillRect(cx-4+((tickA/4+i)%6),cy-2,3,1);}}
+  if(wx==='rain'&&CFG.fx){for(let i=0;i<14;i++){const px=(hash2(i,77)*COLS)|0,py=(hash2(77,i)*ROWS)|0;if(!isOpen(px,py)||tileAt(px,py))continue;const cx=px*T+T*0.25+hash2(i,5)*H2,cy=py*T+T*0.3+hash2(5,i)*(T*0.45);ctx.fillStyle='rgba(120,150,200,.28)';ctx.beginPath();ctx.ellipse(cx,cy,14+hash2(i,9)*10,6+hash2(9,i)*4,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='rgba(220,235,255,.25)';ctx.fillRect(cx-4+((tickA/4+i)%6),cy-2,3,1);}}
   if(wx==='rain'){ctx.strokeStyle='rgba(170,205,255,.35)';ctx.lineWidth=1;ctx.beginPath();for(let i=0;i<(CFG.fx?110:70);i++){const sx=(i*149+(running?tickA*2:0))%(cv.width+60)-30,sy=(i*83+(running?tickA*9:0))%(cv.height+40)-20;ctx.moveTo(sx,sy);ctx.lineTo(sx-3,sy+12);}ctx.stroke();ctx.fillStyle='rgba(40,60,90,.14)';ctx.fillRect(-20,-20,cv.width+40,cv.height+40);}
   if(wx==='fog'){ctx.fillStyle='rgba(190,200,190,.22)';ctx.fillRect(-20,-20,cv.width+40,cv.height+40);for(let i=0;i<5;i++){const yy=(i*160+(running?tickA*0.3:0))%(cv.height+200)-100;const g=ctx.createLinearGradient(0,yy,0,yy+90);g.addColorStop(0,'rgba(210,220,210,0)');g.addColorStop(.5,'rgba(210,220,210,.16)');g.addColorStop(1,'rgba(210,220,210,0)');ctx.fillStyle=g;ctx.fillRect(0,yy,cv.width,90);}}
   if(wx==='heat'){ctx.fillStyle='rgba(255,150,50,.09)';ctx.fillRect(-20,-20,cv.width+40,cv.height+40);}
