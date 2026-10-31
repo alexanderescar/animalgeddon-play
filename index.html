@@ -309,7 +309,7 @@ const VEGS=['carrot','beet','cabbage','lettuce','cauliflower','broccoli','garlic
 const BSC=1.0;/* buildings at native size sit inside an 80 px tile with a margin on each side */const PAD_STONE=new Set(['scrapyard','workshop','lab','guardpost','relay','signal']);
 function drawPad(t,x,y){if(!bldReady||!t.done)return;const a=BLD[PAD_STONE.has(t.type)?'pad_stone':'pad_dirt'];if(!a)return;ctx.globalAlpha=0.8;ctx.drawImage(bldImg,a.x,a.y,a.w,a.h,x*T,y*T+6,T,T-8);ctx.globalAlpha=1;}
 function drawBuilding(t,x,y,alpha){const bx=x*T+T/2,by=y*T+T-5;const n=bname(t.type,t.lvl);if(!n||!bldReady)return false;
-  if(t.type==='road'){const a=BLD[n];ctx.globalAlpha=alpha;ctx.drawImage(bldImg,a.x,a.y,a.w,a.h,x*T,y*T,T,T);ctx.globalAlpha=1;return true;}
+
   if(t.type==='garden'&&t.done&&hasR('greenhouse')){bspr(t.lvl>=3?'greenhouse_2':'greenhouse_1',bx,by,BSC,alpha);return true;}
   if(t.type==='garden'){bspr(n,bx,by,BSC,alpha);const si=seasonIdx();const g3=t.lvl>=3||hasR('greenhouse');const stage=si===3&&!g3?-1:si===0?Math.min(4,Math.floor((seasonDay()-1)/2)):si===1?4:Math.max(1,4-Math.floor((seasonDay()-1)/4));
     if(stage>=0){const cols=t.lvl===1?3:t.lvl===2?4:4,rows=t.lvl===1?2:3;const a=BLD[n];const w=a.w*BSC,hh=a.h*BSC;const veg=VEGS[Math.floor(hash2(x+11,y+13)*VEGS.length)];const cs=BLD[`crop_${veg}_${stage}`];
@@ -453,8 +453,7 @@ const BUILD={
   relay:{name:'Radio relay',single:true,req:15,desc:'Answers the voice on the radio. Make contact on day 30 with it standing. Its mast draws survivors from far away.',lv:[{cost:{wood:18,scrap:18},bp:16,pull:0.2}]},
   workshop:{name:'Workshop',job:'crafter',single:true,req:6,desc:'Crafters turn hide and bone from the dead into armour and weapons for your animals. One per base.',lv:[{cost:{wood:14,scrap:10},bp:12,slots:1,eff:0},{cost:{wood:20,scrap:16},bp:14,slots:2,eff:1,note:'crafters work faster'}]},
   infirmary:{name:'Infirmary',single:true,desc:'The wounded rest inside and heal faster. Without one they take a bed in the shelter.',lv:[{cost:{wood:8,scrap:4},bp:6,heal:1},{cost:{wood:12,scrap:8},bp:8,heal:2,note:'wounds heal two extra days a night'}]},
-  road:{name:'Road',walk:true,desc:'Paving. People and patrol animals move half again as fast on it, and it never blocks the way.',lv:[{cost:{wood:1,scrap:1},bp:1}]},
-  guardpost:{name:'Guard post',job:'guard',desc:'Where guards work. They shoot at whichever front is attacked, from inside the walls. A watchtower on a wall doubles their damage at that front.',lv:[{cost:{wood:3,scrap:2},bp:4,slots:2,eff:0},{cost:{wood:5,scrap:4},bp:6,slots:3,eff:0},{cost:{wood:8,scrap:6},bp:8,slots:4,eff:1,note:'guards +1 damage'}]},
+  guardpost:{name:'Guard post',job:'guard',desc:'Where guards work. They shoot anything within 2.5 tiles of them, so put the post near the walls; a watchtower on a wall lets them fire from it, 4 tiles out and harder. Guards thin a herd; the animals on the wall stop it.',lv:[{cost:{wood:3,scrap:2},bp:4,slots:2,eff:0},{cost:{wood:5,scrap:4},bp:6,slots:3,eff:0},{cost:{wood:8,scrap:6},bp:8,slots:4,eff:1,note:'guards +1 damage'}]},
 };
 const GATHER=['garden','lumber','scrapyard','traps','bughut'];
 const JOBS={
@@ -610,6 +609,8 @@ const WALL_LVL=[null,
   {name:'Scrap-plated wall',cost:{wood:6,scrap:8},bp:8,hp:50,slots:6},
   {name:'Reinforced wall',cost:{wood:10,scrap:12},bp:10,hp:80,slots:8,req:'walls2'}];
 const GATE={cost:{wood:4,scrap:2},bp:3}, TOWER={cost:{wood:5,scrap:4},bp:5};
+const GUARD_RANGE=T*2.5, GUARD_TOWER_RANGE=T*4;   // how far a guard's shot carries, from the ground and from a watchtower
+function towerPos(dir){const [x,y,ww,hh]=wallRect(dir);return ww>hh?{x:x+ww/2,y:dir==='N'?y+hh+28:y-28}:{x:dir==='E'?x-28:x+ww+28,y:y+hh/2};}
 const DIRS={N:'North',E:'East',S:'South',W:'West'};
 const SECTOR={core:{x0:5,x1:10,y0:4,y1:7},N:{x0:5,x1:10,y0:2,y1:3},S:{x0:5,x1:10,y0:8,y1:9},W:{x0:2,x1:4,y0:4,y1:7},E:{x0:11,x1:13,y0:4,y1:7},NE:{x0:11,x1:13,y0:2,y1:3},NW:{x0:2,x1:4,y0:2,y1:3},SE:{x0:11,x1:13,y0:8,y1:9},SW:{x0:2,x1:4,y0:8,y1:9}};
 const CORNERS={NE:['N','E'],NW:['N','W'],SE:['S','E'],SW:['S','W']};
@@ -890,7 +891,7 @@ function tick(){
   let pts=buildPts()/24;
   if(!S.battle&&pts>0){const br=Object.entries(S.walls).find(([d,w])=>w.lvl&&w.broken);if(br){const [d,w]=br;const need=wallMax(w.lvl)*0.25-w.hp;const take=Math.min(need,pts*2);if(take>0){w.hp+=take;pts-=take/2;}if(w.hp>=wallMax(w.lvl)*0.25){w.broken=false;log(`The gap in the ${DIRS[d].toLowerCase()} wall is patched.`,'g');alert_('Gap patched',`Builders closed the gap in the ${DIRS[d].toLowerCase()} wall. It still needs repairs before the next horde.`,'good');}}}
   for(const q of S.queue){if(pts<=0)break;const use=Math.min(q.need-q.bp,pts);q.bp+=use;pts-=use;}
-  const fin=finishQueue().filter(n=>n!=='Road');if(CFG.finishAlerts)fin.forEach(n=>alert_('Finished',`${n} is ready.`,'good'));else fin.forEach(n=>floater(cv.width/2,cv.height/2-40,`${n} ready`,'#8fd45c'));
+  const fin=finishQueue();if(CFG.finishAlerts)fin.forEach(n=>alert_('Finished',`${n} is ready.`,'good'));else fin.forEach(n=>floater(cv.width/2,cv.height/2-40,`${n} ready`,'#8fd45c'));
   if(!S.queue.length&&!S.battle){let rep=inJob('builder').reduce((n,p)=>n+tier(p.st.spd)*eff(p),0)/24;let did=false;
     Object.entries(S.walls).forEach(([d,w])=>{if(w.lvl&&rep>0&&w.hp<wallMax(w.lvl)){const take=Math.min(wallMax(w.lvl)-w.hp,rep);w.hp+=take;rep-=take;did=true;if(w.broken&&w.hp>=wallMax(w.lvl)*0.25){w.broken=false;log(`The gap in the ${DIRS[d].toLowerCase()} wall is patched.`,'g');}}});if(did&&S.hour%3===0)sfx('repair');}
   const cons=consumption();
@@ -1012,7 +1013,7 @@ const TIPS={
   research:{t:'Research is ready',b:()=>`You have enough research points for your first project. Research unlocks stronger walls, watchtowers, greenhouses and the second and third forms of each animal line.`,go:['Open Research','research']},
   grow:{t:'An animal can grow',b:(to)=>`You researched the ${SPECIES[to].name}. Open ANIMALS, tap a ${SPECIES[SPECIES[to].from].name.toLowerCase()} and press <b>Grow</b>: it becomes a ${SPECIES[to].name} (${SPECIES[to].abd.split(':')[0].toLowerCase()}) for a little scrap and food.`,go:['Open Animals','animals']},
   cold:{t:'An animal is cold',b:(c)=>`${c.name||SPECIES[c.sp].name} shows a ❄: a cold-blooded animal posted outside the signal fire's warmth fights at half strength in winter. Upgrade the fire so its warmth reaches the wall, or post warm-blooded birds (rooster, turkey, emu, pigeon) on the cold fronts.`,go:['Open Animals','animals']},
-  tower:{t:'The watchtower',b:(dir)=>`Nobody climbs the ${DIRS[dir].toLowerCase()} tower: it is a firing platform for your <b>guards</b> (People → Guard, working from the guard post). Every guard shot at this wall now does double damage, and the tower spots hordes two hours early with a head count. Towers sit in the middle of a wall; animals take the slots either side.`,go:['Open Walls','walls']},
+  tower:{t:'The watchtower',b:(dir)=>`Your <b>guards</b> (People → Guard, working from the guard post) fire from the ${DIRS[dir].toLowerCase()} tower when that wall is attacked: their shots reach 4 tiles from the tower instead of 2.5 from where they stand, and hit half again as hard. It also spots hordes two hours early with a head count. Towers sit in the middle of a wall; animals take the slots either side.`,go:['Open Walls','walls']},
   morale:{t:'Morale is low',b:()=>`Morale is ${S.morale}/10. It drops when people go hungry or die, and rises with a medic, good food and wins. At 0 someone leaves. Feed everyone and keep the fire lit.`,go:['Open People','people']},
   levelled:{t:'Someone improved',b:(txt)=>`${txt}: people get better at their job the longer they do it, raising the stat that job uses. Keep people in a job and they outproduce a newcomer.`,go:['Open People','people']},
   night:{t:'Night falls',b:()=>`At night everyone who is not a guard goes into the shelter to sleep (the number over its roof shows how many are inside); the wounded stay in the infirmary. Animals in the pen sleep too. Guards stay up, and during a horde the workers run inside.`},
@@ -1131,9 +1132,12 @@ function updateBattle(dt){
     if(s.ab==='constrict'){target.heldT=0.3;if(!target.held){target.held=true;floater(target.x,target.y-22,'constricted','#c58cff');}}
     if(s.ab==='blind'&&c.cd<=0){c.cd=6;target.blind=3;floater(target.x,target.y-22,'blinded','#f0b64a');particles.push({x:a.x,y:a.y,vx:(target.x-a.x)*4,vy:(target.y-a.y)*4,t:0,life:0.25,col:'#8fd45c'});}
     if(target.hp<=0){kill(target,cname(c));}});
+  // guards shoot what they can reach: 2.5 tiles from where they stand, or 4 tiles from a watchtower at the front
+  // being attacked (they fire from it), where a shot also hits half again as hard
   guardsP.forEach(p=>{const live=B.enemies.filter(e=>!e.dead);if(!live.length)return;const a=anim[p.id];if(!a)return;
-    const target=live.sort((u,v)=>Math.hypot(u.x-a.x,u.y-a.y)-Math.hypot(v.x-a.x,v.y-a.y))[0];
-    const tower=!target.inside&&S.towers[target.dir]?2:1;hitEnemy(target,(1+p.st.str/2+gpEff+(hasPerk('deadeye')?1:0))*tower*dt);a.shot=target;if(Math.random()<dt*1.5)sfx('shot');
+    let target=null,bd=1e9,fromTower=false;for(const e of live){let d=Math.hypot(e.x-a.x,e.y-a.y),tw=false;if(!e.inside&&S.towers[e.dir]){const tp=towerPos(e.dir);const d2=Math.hypot(e.x-tp.x,e.y-tp.y);if(d2<=GUARD_TOWER_RANGE&&(d2<d||d>GUARD_RANGE)){d=d2;tw=true;}}
+      if(d<=(tw?GUARD_TOWER_RANGE:GUARD_RANGE)&&d<bd){bd=d;target=e;fromTower=tw;}}
+    if(!target)return;hitEnemy(target,(0.4+p.st.str/5+gpEff*0.4+(hasPerk('deadeye')?0.4:0))*(fromTower?1.5:1)*dt);a.shot=target;if(Math.random()<dt*1.5)sfx('shot');
     if(target.hp<=0){kill(target,p.name);}});
   S.creatures.filter(c=>c.hp<=0).forEach(c=>{B.lost.push(cname(c));ticker(`${cname(c)} fell at the ${DIRS[c.front].toLowerCase()} wall`);const a=anim[c.id];if(a){puff(a.x,a.y,'#ff6b5c',6,40);corpse(c.sp,a.x,a.y+8,a.face);}log(`${cname(c)} fell at the ${DIRS[c.front].toLowerCase()} wall.`,'e');sfx('hurt');});
   S.creatures=S.creatures.filter(c=>c.hp>0);
@@ -1218,13 +1222,18 @@ function creatureAt(p){let best=null,bd=26;S.creatures.forEach(c=>{const a=anim[
 function frontAt(p){for(const dir of fronts()){const [x,y,w,h]=wallRect(dir);const pad=48;if(p.x>=x-pad&&p.x<=x+w+pad&&p.y>=y-pad&&p.y<=y+h+pad)return dir;}return null;}
 function penAt(p){const t=tileFromPos(p);if(!t)return false;const tl=tileAt(t.x,t.y);return !!(tl&&tl.type==='pen'&&tl.done);}
 function postAt(p){const t=tileFromPos(p);if(!t)return false;const tl=tileAt(t.x,t.y);return !!(tl&&tl.type==='guardpost'&&tl.done);}
-cv.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;ac();if(!S||S.over)return;const p=canvasPos(ev);const c=creatureAt(p);
+let roadDrag=null;
+cv.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;ac();if(!S||S.over)return;const p=canvasPos(ev);
+  if(buildSel==='road'){const cx=Math.floor(p.x/H2),cy=Math.floor(p.y/H2);roadDrag={erase:roadAt(cx,cy),last:null};if(paintRoad(cx,cy,roadDrag.erase))sfx('click');roadDrag.last=cx+','+cy;try{cv.setPointerCapture(ev.pointerId);}catch(e){}return;}
+  const c=creatureAt(p);
   if(!c&&cam.uz>1.001){cam.pan={x:ev.clientX,y:ev.clientY,ux:cam.ux,uy:cam.uy,left:true,moved:false};}
   drag={start:p,pos:p,creature:c,moved:false,id:ev.pointerId};try{cv.setPointerCapture(ev.pointerId);}catch(e){}});
-cv.addEventListener('pointermove',ev=>{const p=canvasPos(ev);hoverTile=tileFromPos(p);
+let mouseP={x:0,y:0};
+cv.addEventListener('pointermove',ev=>{const p=canvasPos(ev);mouseP=p;hoverTile=tileFromPos(p);
+  if(roadDrag){const cx=Math.floor(p.x/H2),cy=Math.floor(p.y/H2);const k=cx+','+cy;if(k!==roadDrag.last){roadDrag.last=k;if(paintRoad(cx,cy,roadDrag.erase))sfx('click');}return;}
   if(drag){drag.pos=p;if(Math.hypot(p.x-drag.start.x,p.y-drag.start.y)>6)drag.moved=true;if(drag.moved&&drag.creature)cv.style.cursor='grabbing';}
   updateTip();});
-cv.addEventListener('pointerup',ev=>{if(!drag)return;const d=drag;drag=null;cv.style.cursor='pointer';const p=canvasPos(ev);
+cv.addEventListener('pointerup',ev=>{if(roadDrag){roadDrag=null;save();renderHud();return;}if(!drag)return;const d=drag;drag=null;cv.style.cursor='pointer';const p=canvasPos(ev);
   if(d.moved&&d.creature){const f=frontAt(p);if(f)postCreature(d.creature.id,f);else if(penAt(p))postCreature(d.creature.id,'pen');else if(postAt(p))postCreature(d.creature.id,'patrol');else floater(p.x,p.y-10,'drop on a wall, the pen, or the guard post (patrol)','#f0b64a');return;}
   if(d.moved)return;
   const t=tileFromPos(p);if(!t)return;const tl=tileAt(t.x,t.y);
@@ -1234,7 +1243,7 @@ cv.addEventListener('pointerup',ev=>{if(!drag)return;const d=drag;drag=null;cv.s
   if(buildSel&&!tl){placeAt(t.x,t.y);return render();}
   sel=tl?K(t.x,t.y):null;buildSel=null;if(tl)openTab('tile');else if(tab==='tile')closeDrawer();render();
 });
-cv.addEventListener('pointercancel',()=>{drag=null;cam.pan=null;cv.style.cursor='pointer';});
+cv.addEventListener('pointercancel',()=>{drag=null;roadDrag=null;cam.pan=null;cv.style.cursor='pointer';});
 cv.addEventListener('wheel',ev=>{if(!S)return;ev.preventDefault();const r=cv.getBoundingClientRect();const sx=(ev.clientX-r.left)/r.width*cv.width,sy=(ev.clientY-r.top)/r.height*cv.height;
   const wx=(sx-cam.tx)/cam.z,wy=(sy-cam.ty)/cam.z;const nz=Math.min(3,Math.max(1,cam.uz*(ev.deltaY<0?1.15:1/1.15)));
   if(nz<=1.001){cam.uz=1;cam.ux=0;cam.uy=0;return;}cam.uz=nz;cam.ux=sx-wx*nz;cam.uy=sy-wy*nz;clampCam();if(cam.z<1.01){cam.z=nz;cam.tx=cam.ux;cam.ty=cam.uy;}},{passive:false});
@@ -1325,8 +1334,10 @@ function creatureTarget(c){
     if(a.pd==null)a.pd=i*per/Math.max(1,list.length);
     const pace=(0.6+SPECIES[c.sp].power*0.05)*(onRoad(a.x,a.y)?1.5:1);if(S.speed>0)a.pd=(a.pd+pace)%per;a.pace=pace;
     const at=q=>{q=(q%per+per)%per;if(q<x1-x0)return {x:x0+q,y:y0};q-=x1-x0;if(q<y1-y0)return {x:x1,y:y0+q};q-=y1-y0;if(q<x1-x0)return {x:x1-q,y:y1};q-=x1-x0;return {x:x0,y:y1-q};};
-    const here=at(a.pd);if(Math.hypot(here.x-a.x,here.y-a.y)>40)return here;   // far off the loop (just posted, or back from a chase): walk to it first
-    return at(a.pd+14);}
+    // the loop passes through whatever is built on the inner ring of tiles: skip ahead past buildings so the patrol walks around them
+    const free=q=>{for(let k=0;k<per;k+=20){const pt=at(q+k);const t=S.tiles[K(Math.floor(pt.x/T),Math.floor(pt.y/T))];if(!t||!t.done||BUILD[t.type].walk)return pt;}return at(q);};
+    const here=free(a.pd);if(Math.hypot(here.x-a.x,here.y-a.y)>40)return here;   // far off the loop (just posted, or back from a chase): walk to it first
+    return free(a.pd+14);}
   const pens=builtOf('pen');if(!pens.length)return tileCenter(K(8,6));
   const penned=S.creatures.filter(x=>x.post==='pen');const i=penned.indexOf(c);
   let acc=0,pen=pens[0],slot=i;for(const t of pens){const s=LV(t).house+(hasPerk('bigpens')?2:0);if(i<acc+s){pen=t;slot=i-acc;break;}acc+=s;}
@@ -1339,11 +1350,19 @@ function ensureAnim(id,x,y){if(!anim[id])anim[id]={x,y,t:rnd(1000),seed:Math.ran
    cheaper to cross and faster to walk. A straight line is used whenever it is clear. */
 let TV=0;   // bumped whenever the tile map changes, so cached paths are dropped
 const DBG={nopath:[]};
-const onRoad=(x,y)=>{const t=S.tiles[K(Math.floor(x/T),Math.floor(y/T))];return !!(t&&t.done&&t.type==='road');};
+/* roads: paved half-tiles (40 px) painted by dragging in BUILD -> Road; a strip, not a tile, so it runs between and
+   past buildings. 1 scrap a step. Dragging from a paved step removes the strip under the drag and refunds it. */
+const ROAD_COST=1;
+const roads=()=>(S.roads=S.roads||{});
+const roadAt=(cx,cy)=>!!roads()[cx+','+cy];
+const onRoad=(x,y)=>roadAt(Math.floor(x/H2),Math.floor(y/H2));
+function paintRoad(cx,cy,erase){const k=cx+','+cy;const tx=cx>>1,ty=cy>>1;if(!isOpen(tx,ty))return false;
+  if(erase){if(!roads()[k])return false;delete roads()[k];S.res.scrap+=ROAD_COST;TV++;return true;}
+  if(roads()[k])return false;if(S.res.scrap<ROAD_COST){floater(cx*H2+H2/2,cy*H2,'no scrap','#ff6b5c');return false;}S.res.scrap-=ROAD_COST;roads()[k]=1;TV++;return true;}
 // what a half-tile costs to cross: the forest is off limits (except to scouts), a finished building that is
-// not the destination costs eight times open ground (so it is only ever crossed when a base has walled an
+// not the destination costs 25 times open ground (so it is only ever crossed when a base has walled an
 // area off completely), a road is cheaper than grass
-function cellCost(cx,cy,destKey,scout){const tx=cx>>1,ty=cy>>1;if(tx<0||ty<0||tx>=COLS||ty>=ROWS)return Infinity;if(!scout&&!isOpen(tx,ty))return Infinity;const t=S.tiles[K(tx,ty)];if(!t||!t.done)return 1;if(t.type==='road')return 0.6;if(BUILD[t.type].walk)return 1;return K(tx,ty)===destKey?1:8;}
+function cellCost(cx,cy,destKey,scout){const tx=cx>>1,ty=cy>>1;if(tx<0||ty<0||tx>=COLS||ty>=ROWS)return Infinity;if(!scout&&!isOpen(tx,ty))return Infinity;const t=S.tiles[K(tx,ty)];if(t&&t.done&&!BUILD[t.type].walk&&K(tx,ty)!==destKey)return 25;return roadAt(cx,cy)?0.6:1;}
 function cellBlocked(cx,cy,destKey,scout){return cellCost(cx,cy,destKey,scout)>1;}
 function clearLine(ax,ay,bx,by,destKey,scout){const d=Math.hypot(bx-ax,by-ay);const n=Math.ceil(d/12);for(let i=1;i<=n;i++){const x=ax+(bx-ax)*i/n,y=ay+(by-ay)*i/n;if(cellBlocked(Math.floor(x/H2),Math.floor(y/H2),destKey,scout))return false;}return true;}
 function findPath(ax,ay,bx,by,destKey,scout){const W=COLS*2,Hh=ROWS*2;const sx=Math.floor(ax/H2),sy=Math.floor(ay/H2),ex=Math.floor(bx/H2),ey=Math.floor(by/H2);if(sx===ex&&sy===ey)return [];
@@ -1451,6 +1470,11 @@ function draw(ts){
   }
   if(fx&&paths.size){const P=new Path2D();for(const k of paths){const [sx,sy]=k.split(',').map(Number);const cx=sx*H2+H2/2,cy=sy*H2+H2/2;const pr=H2*0.4;P.moveTo(cx+pr,cy);P.arc(cx,cy,pr,0,Math.PI*2);if(paths.has((sx+1)+','+sy))P.rect(cx,cy-pr+2,H2,pr*2-4);if(paths.has(sx+','+(sy+1)))P.rect(cx-pr+2,cy,pr*2-4,H2);}
     ctx.save();ctx.clip(P);for(const k of paths){const [sx,sy]=k.split(',').map(Number);if(!subOpen(sx,sy))continue;const rr=hash2(sx+90,sy+90);envTile('sand',Math.floor(rr*4),Math.floor((rr*7%1)*4),sx*H2-2,sy*H2-2,H2+4,0.62);}ctx.restore();}
+  // paved roads: each half-tile shows one quadrant of the cobble tile, so neighbours knit together
+  {const rd=BLD['road_1'];if(rd&&bldReady){const R=roads();for(const k in R){const [cx,cy]=k.split(',').map(Number);const qx=(cx&1)*(rd.w/2),qy=(cy&1)*(rd.h/2);ctx.drawImage(bldImg,rd.x+qx,rd.y+qy,rd.w/2,rd.h/2,cx*H2,cy*H2,H2,H2);
+      // a soft edge where the paving meets grass
+      ctx.strokeStyle='rgba(60,44,28,.35)';ctx.lineWidth=1;ctx.beginPath();if(!R[cx+','+(cy-1)]){ctx.moveTo(cx*H2,cy*H2+0.5);ctx.lineTo(cx*H2+H2,cy*H2+0.5);}if(!R[cx+','+(cy+1)]){ctx.moveTo(cx*H2,cy*H2+H2-0.5);ctx.lineTo(cx*H2+H2,cy*H2+H2-0.5);}if(!R[(cx-1)+','+cy]){ctx.moveTo(cx*H2+0.5,cy*H2);ctx.lineTo(cx*H2+0.5,cy*H2+H2);}if(!R[(cx+1)+','+cy]){ctx.moveTo(cx*H2+H2-0.5,cy*H2);ctx.lineTo(cx*H2+H2-0.5,cy*H2+H2);}ctx.stroke();}
+    if(buildSel==='road'&&hoverTile){const cx=Math.floor(mouseP.x/H2),cy=Math.floor(mouseP.y/H2);ctx.fillStyle=`rgba(240,182,74,${.3+Math.sin(tickA/10)*.1})`;ctx.fillRect(cx*H2,cy*H2,H2,H2);}}}
   if(snowy){ctx.fillStyle=`rgba(236,240,250,${W()==='snow'?0.42:0.3})`;for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(isOpen(x,y))ctx.fillRect(x*T,y*T,T,T);}
   // pass 2: forest trees (row by row so lower trees overlap upper ones) and ground decorations
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
@@ -1489,7 +1513,7 @@ function draw(ts){
       if(w.broken){ctx.fillStyle='rgba(42,26,14,.55)';ctx.fillRect(gx,gy,gw,gh);const pa=BLD.plank_a,pb=BLD.plank_b;if(pa&&bldReady){for(let i=0;i<4;i++){const q=i%2?pb:pa;const px=gx+((i*37)%Math.max(1,gw-20)),py=gy+((i*23)%Math.max(1,gh-10))-6;ctx.drawImage(bldImg,q.x,q.y,q.w,q.h,px,py,q.w*0.6,q.h*0.6);}}ctx.fillStyle='#ff8a7a';ctx.font='9px "Press Start 2P", monospace';ctx.textAlign='center';ctx.fillText('GAP',gx+gw/2,gy+gh/2+4);}
       const gq=0.72;   // the gate sits past the middle; the watchtower takes the middle
       if(S.gates[dir]){ctx.fillStyle='#5a3414';ww>hh?ctx.fillRect(x+ww*gq-14,y-2,28,hh+4):ctx.fillRect(x-2,y+hh*gq-14,ww+4,28);ctx.fillStyle='#f0b64a';ww>hh?ctx.fillRect(x+ww*gq-2,y+hh/2-1,4,2):ctx.fillRect(x+ww/2-1,y+hh*gq-2,2,4);}
-      if(S.towers[dir]){const tx=ww>hh?x+ww/2:(dir==='E'?x-28:x+ww+28),ty=ww>hh?(dir==='N'?y+hh+28:y-28):y+hh/2;spr('tower',tx,ty,2);}
+      if(S.towers[dir]){const tp=towerPos(dir);spr('tower',tp.x,tp.y,2);}
       const max=wallMax(w.lvl);
       if(w.hp<max-0.5||S.battle){const frac=Math.max(0,w.hp/max);ctx.fillStyle='#0f1410';
         const bq=0.26,bl=Math.min(120,(ww>hh?ww:hh)*0.4);
@@ -1641,7 +1665,7 @@ function wallCard(dir,focus){
   else if(nx&&(front||w.lvl)){const locked=nx.req&&!hasR(nx.req);const b=btn(w.lvl?'Upgrade wall':'Build wall',`${nx.name} · ${costStr(nx.cost)} · ${nx.bp} bp · ${nx.hp} HP · ${nx.slots} slots${locked?' · needs research':''}`,()=>queueWall(dir));b.disabled=locked||!canPay(nx.cost)||S.over;box.appendChild(b);}
   if(w.lvl){const r=el('div','row');const gq=queueItem('gate',dir),tq=queueItem('tower',dir);
     if(!S.gates[dir]){const b=btn(`${EM.gate} Gate`,gq?`${fl(gq.bp)}/${gq.need} bp`:`${costStr(GATE.cost)} · ${GATE.bp} bp · scouts leave at full speed`,()=>queueExtra('gate',dir),'sm');b.disabled=!!gq||!canPay(GATE.cost)||S.over;r.appendChild(b);}
-    if(!S.towers[dir]){const lk=!hasR('towers');const b=btn(`${EM.tower} Watchtower`,tq?`${fl(tq.bp)}/${tq.need} bp`:lk?'research Watchtowers first':`${costStr(TOWER.cost)} · ${TOWER.bp} bp · your guards hit double at this front + 2h early warning`,()=>queueExtra('tower',dir),'sm');b.disabled=lk||!!tq||!canPay(TOWER.cost)||S.over;r.appendChild(b);}
+    if(!S.towers[dir]){const lk=!hasR('towers');const b=btn(`${EM.tower} Watchtower`,tq?`${fl(tq.bp)}/${tq.need} bp`:lk?'research Watchtowers first':`${costStr(TOWER.cost)} · ${TOWER.bp} bp · guards fire from it: 4 tiles of reach instead of 2.5, hits 1.5x · 2h early warning`,()=>queueExtra('tower',dir),'sm');b.disabled=lk||!!tq||!canPay(TOWER.cost)||S.over;r.appendChild(b);}
     if(r.children.length)box.appendChild(r);}
   if(front){const g=guardsOf(dir);const n=wallSlots(dir);const cold=g.filter(c=>coldFactor(c)<1).length;
     box.appendChild(el('small','',`${EM.guard} ${g.reduce((s,c)=>s+cpower(c),0)} power on this wall${cold?` <span class="cold">❄${cold} cold</span>`:''}. Click a slot to post or move an animal, or drag animals on the map.`));
@@ -1663,8 +1687,9 @@ function renderDrawer(){
   if(tab==='build'){title.innerHTML=ico('builder')+'BUILD';
     queueList(body);
     body.appendChild(el('h4','','BLUEPRINTS'));
-    body.appendChild(el('div','muted',buildSel?`Click an empty tile to place a ${BUILD[buildSel].name.toLowerCase()}.`:'Pick one, then click an empty tile inside the walls. Click a built building to upgrade it. Walls, gates, and towers: click a wall.'));
-    const row=el('div','row');Object.entries(BUILD).forEach(([id,b])=>{const have=anyOf(id);if(b.single&&have)return;if(b.req&&S.day<b.req)return;const e=btn(`${icon(id)} ${b.name}`,`${costStr(b.lv[0].cost)} · ${b.lv[0].bp} bp`,()=>{buildSel=buildSel===id?null:id;sel=null;render();},buildSel===id?'sel':'');e.disabled=S.over||!canPay(b.lv[0].cost);e.title=b.desc;row.appendChild(e);});body.appendChild(row);
+    body.appendChild(el('div','muted',buildSel==='road'?`Paving: drag across the map to lay a road, ${EM.scrap}1 a step. Drag starting on paving to take it up again. Roads can run under buildings you place later.`:buildSel?`Click an empty tile to place a ${BUILD[buildSel].name.toLowerCase()}.`:'Pick one, then click an empty tile inside the walls. Click a built building to upgrade it. Walls, gates, and towers: click a wall.'));
+    const row=el('div','row');Object.entries(BUILD).forEach(([id,b])=>{const have=anyOf(id);if(b.single&&have)return;if(b.req&&S.day<b.req)return;const e=btn(`${icon(id)} ${b.name}`,`${costStr(b.lv[0].cost)} · ${b.lv[0].bp} bp`,()=>{buildSel=buildSel===id?null:id;sel=null;render();},buildSel===id?'sel':'');e.disabled=S.over||!canPay(b.lv[0].cost);e.title=b.desc;row.appendChild(e);});
+    {const e=btn(`${bicon('road_1')} Road`,`${EM.scrap}${ROAD_COST} a step · drag on the map to pave, drag from paving to remove`,()=>{buildSel=buildSel==='road'?null:'road';sel=null;render();},buildSel==='road'?'sel':'');e.title='A paved strip between and past buildings. People and patrol animals walk half again as fast on it, and they prefer it when they plan a route: run one from the gate to the middle of camp and scouts come home quicker.';row.appendChild(e);}body.appendChild(row);
     body.appendChild(el('h4','','CLEAR FOREST'));const cl=el('div','row');
     Object.keys(DIRS).forEach(dir=>{if(S.open.includes(dir))return;const q=queueItem('clear',dir);
       const b=btn(`${ico('leaf',1)} ${DIRS[dir]}`,q?`clearing ${fl(q.bp)}/${q.need} bp`:`${costStr(CLEAR.cost)} · ${CLEAR.bp} bp · +${CLEAR.gain} wood · opens a front`,()=>queueClear(dir));b.disabled=!!q||!canPay(CLEAR.cost)||S.over;cl.appendChild(b);});body.appendChild(cl);
@@ -2084,6 +2109,6 @@ if(savedGame){S=migrate(savedGame);render();showOpening();}
 else{showOpening();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
-window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,DBG,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
+window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,DBG,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
 })();
 </script>
