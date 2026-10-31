@@ -44,7 +44,7 @@ input.rename{font:700 20px var(--body);padding:6px 10px;border:3px solid #7a4a24
 .ic{display:inline-block;width:32px;height:32px;background-image:url(icons.png?v=4a39d0ee);background-repeat:no-repeat;vertical-align:middle;flex:0 0 auto}
 .ic.s{width:24px;height:24px}
 .por{display:inline-block;width:80px;height:80px;background-image:url(portraits.png?v=35c63c2e);background-repeat:no-repeat;image-rendering:pixelated;border:2px solid #6b4a2c;border-radius:6px;background-color:#2a2018;float:left;margin:0 12px 6px 0;flex:0 0 auto}
-.asp{display:inline-block;width:40px;height:40px;background-image:url(animals.png?v=61f74706);background-repeat:no-repeat;vertical-align:middle;flex:0 0 auto}
+.asp{display:inline-block;width:40px;height:40px;background-image:url(animals.png?v=bf5adfbd);background-repeat:no-repeat;vertical-align:middle;flex:0 0 auto}
 .sp{display:inline-block;width:32px;height:32px;background-image:url(sheet.png?v=ec2cbd7e);background-repeat:no-repeat;vertical-align:middle}
 .psp{display:inline-block;position:relative;vertical-align:middle;image-rendering:pixelated}.psp i{position:absolute;left:0;top:0;width:100%;height:100%;background-image:url(people.png?v=e573a07a);background-repeat:no-repeat}
 .bsp{display:inline-block;background-image:url(bld.png?v=6810098d);background-repeat:no-repeat;vertical-align:middle;image-rendering:pixelated}
@@ -238,8 +238,8 @@ function spr(name,x,y,scale=2,frame=0,flip=false,alpha=1){const a=ATLAS[name];if
   ctx.drawImage(sheet,a.x+(frame%a.frames)*a.w,a.y,a.w,a.h,-a.w*scale/2,-a.h*scale/2,a.w*scale,a.h*scale);ctx.restore();}
 function tile(name,x,y){const a=ATLAS[name];if(!a||!sheetReady){ctx.fillStyle='#3a5a2c';ctx.fillRect(x,y,T,T);return;}ctx.drawImage(sheet,a.x,a.y,a.w,a.h,x,y,T,T);}
 const spCss=name=>{const a=ATLAS[name];if(!a)return '';return `background-position:-${a.x*2}px -${a.y*2}px;background-size:${(sheet.naturalWidth||512)*2}px auto;width:${a.w*2}px;height:${a.h*2}px`;};
-const ANIM={"rows":{"idle":[0,6],"walk":[1,4],"sleep":[2,4],"down":[3,4],"up":[4,4],"graze":[5,4],"scared":[6,4],"angry":[7,4],"death":[8,6]},"frame":32,"ground":24,"sprites":{"iguana":{"x":0,"src":"Lizard"},"crocodile":{"x":192,"src":"Crocodile"},"komodo":{"x":384,"src":"Crocodile"},"garter":{"x":4608,"y":288,"cell":64,"ground":48,"sc":1.25,"h":13,"src":"big:garter"},"cobra":{"x":4992,"y":288,"cell":64,"ground":48,"sc":1.35,"h":13,"src":"big:cobra"},"anaconda":{"x":5376,"y":288,"cell":64,"ground":48,"sc":1.45,"h":13,"src":"big:anaconda"},"treefrog":{"x":1152,"src":"Frog"},"toad":{"x":1344,"src":"Frog"},"dartfrog":{"x":1536,"src":"Frog"},"pigeon":{"x":1728,"src":"Pigeon"},"crow":{"x":1920,"src":"Crow"},"hawk":{"x":2112,"src":"Eagle"},"boxturtle":{"x":2304,"src":"Turtle"},"snapping":{"x":2496,"src":"Turtle"},"tortoise":{"x":2688,"src":"Turtle"},"mouse":{"x":2880,"src":"Mouse"},"squirrel":{"x":3072,"src":"Squirrel"},"boar":{"x":3264,"src":"Boar"},"bat":{"x":3456,"src":"Bat"},"cow":{"x":3648,"src":"Cow"},"bear":{"x":3840,"src":"Bear"},"hedgehog":{"x":4032,"src":"Hedgehog"},"rooster":{"x":0,"y":288,"cell":64,"ground":48,"sc":0.6,"h":32,"src":"big:rooster"},"turkey":{"x":384,"y":288,"cell":64,"ground":48,"sc":1.0,"h":16,"src":"big:turkey"},"emu":{"x":768,"y":288,"cell":64,"ground":48,"sc":0.9,"h":27,"src":"big:emu"},"deer":{"x":1152,"y":288,"cell":64,"ground":48,"sc":0.75,"h":45,"src":"big:deer"},"sheep":{"x":1536,"y":288,"cell":64,"ground":48,"sc":1.3,"h":13,"src":"big:sheep"},"goat":{"x":1920,"y":288,"cell":64,"ground":48,"sc":0.8,"h":27,"src":"big:goat"},"pig":{"x":2304,"y":288,"cell":64,"ground":48,"sc":0.8,"h":23,"src":"big:pig"},"wolf":{"x":2688,"y":288,"cell":64,"ground":48,"sc":1.15,"h":17,"src":"big:wolf"},"wolf_b":{"x":3072,"y":288,"cell":64,"ground":48,"sc":1.15,"h":17,"src":"big:wolf_b"},"wolf_c":{"x":3456,"y":288,"cell":64,"ground":48,"sc":1.15,"h":17,"src":"big:wolf_c"},"wolf_healthy":{"x":3840,"y":288,"cell":64,"ground":48,"sc":1.15,"h":17,"src":"big:wolf_healthy"},"sheep_healthy":{"x":4224,"y":288,"cell":64,"ground":48,"sc":1.3,"h":13,"src":"big:sheep_healthy"},"rat":{"x":5760,"y":288,"cell":64,"ground":48,"sc":1.0,"h":11,"src":"big:rat"},"rat_b":{"x":6144,"y":288,"cell":64,"ground":48,"sc":1.0,"h":11,"src":"big:rat_b"},"rat_c":{"x":6528,"y":288,"cell":64,"ground":48,"sc":1.0,"h":11,"src":"big:rat_c"}}};const ANIMW=Object.values(ANIM.sprites).filter(s=>!s.cell).length*192;   // width of the 32-cell strip; the 64-cell band below it starts at y=288
-const asheet=new Image();let asheetReady=false;asheet.src='animals.png?v=61f74706';asheet.onload=()=>{asheetReady=true;};
+const ANIM={"rows":{"idle":[0,6],"walk":[1,4],"sleep":[2,4],"down":[3,4],"up":[4,4],"graze":[5,4],"scared":[6,4],"angry":[7,4],"death":[8,6]},"frame":32,"ground":24,"sprites":{"iguana":{"x":0,"src":"Lizard"},"crocodile":{"x":192,"src":"Crocodile"},"komodo":{"x":384,"src":"Crocodile"},"garter":{"x":4608,"y":288,"cell":64,"ground":48,"sc":1.25,"h":13,"src":"big:garter"},"cobra":{"x":4992,"y":288,"cell":64,"ground":48,"sc":1.35,"h":13,"src":"big:cobra"},"anaconda":{"x":5376,"y":288,"cell":64,"ground":48,"sc":1.45,"h":13,"src":"big:anaconda"},"treefrog":{"x":1152,"src":"Frog"},"toad":{"x":1344,"src":"Frog"},"dartfrog":{"x":1536,"src":"Frog"},"pigeon":{"x":1728,"src":"Pigeon"},"crow":{"x":1920,"src":"Crow"},"hawk":{"x":2112,"src":"Eagle"},"boxturtle":{"x":2304,"src":"Turtle"},"snapping":{"x":2496,"src":"Turtle"},"tortoise":{"x":2688,"src":"Turtle"},"mouse":{"x":2880,"src":"Mouse"},"squirrel":{"x":3072,"src":"Squirrel"},"boar":{"x":3264,"src":"Boar"},"bat":{"x":3456,"src":"Bat"},"cow":{"x":3648,"src":"Cow"},"bear":{"x":3840,"src":"Bear"},"hedgehog":{"x":4032,"src":"Hedgehog"},"rooster":{"x":0,"y":288,"cell":64,"ground":48,"sc":0.6,"h":32,"src":"big:rooster"},"turkey":{"x":384,"y":288,"cell":64,"ground":48,"sc":1.0,"h":16,"src":"big:turkey"},"emu":{"x":768,"y":288,"cell":64,"ground":48,"sc":0.9,"h":29,"src":"big:emu"},"deer":{"x":1152,"y":288,"cell":64,"ground":48,"sc":0.75,"h":45,"src":"big:deer"},"sheep":{"x":1536,"y":288,"cell":64,"ground":48,"sc":1.3,"h":13,"src":"big:sheep"},"goat":{"x":1920,"y":288,"cell":64,"ground":48,"sc":0.8,"h":27,"src":"big:goat"},"pig":{"x":2304,"y":288,"cell":64,"ground":48,"sc":0.8,"h":23,"src":"big:pig"},"wolf":{"x":2688,"y":288,"cell":64,"ground":48,"sc":1.15,"h":17,"src":"big:wolf"},"wolf_b":{"x":3072,"y":288,"cell":64,"ground":48,"sc":1.15,"h":17,"src":"big:wolf_b"},"wolf_c":{"x":3456,"y":288,"cell":64,"ground":48,"sc":1.15,"h":17,"src":"big:wolf_c"},"wolf_healthy":{"x":3840,"y":288,"cell":64,"ground":48,"sc":1.15,"h":17,"src":"big:wolf_healthy"},"sheep_healthy":{"x":4224,"y":288,"cell":64,"ground":48,"sc":1.3,"h":13,"src":"big:sheep_healthy"},"rat":{"x":5760,"y":288,"cell":64,"ground":48,"sc":1.0,"h":11,"src":"big:rat"},"rat_b":{"x":6144,"y":288,"cell":64,"ground":48,"sc":1.0,"h":11,"src":"big:rat_b"},"rat_c":{"x":6528,"y":288,"cell":64,"ground":48,"sc":1.0,"h":11,"src":"big:rat_c"}}};const ANIMW=Object.values(ANIM.sprites).filter(s=>!s.cell).length*192;   // width of the 32-cell strip; the 64-cell band below it starts at y=288
+const asheet=new Image();let asheetReady=false;asheet.src='animals.png?v=bf5adfbd';asheet.onload=()=>{asheetReady=true;};
 const AFPS={idle:6,walk:8,down:8,up:8,sleep:4,graze:4,scared:9,angry:8,death:4};
 function aspr(name,row,frame,x,y,flip=false,scale=1.5,alpha=1,wide=1){const s=ANIM.sprites[name];if(!s||!asheetReady)return false;const [r,n]=ANIM.rows[row]||ANIM.rows.idle;const f=Math.max(0,frame)%n;const F=s.cell||ANIM.frame,G=s.ground||ANIM.ground,sy=s.y||0;scale*=s.sc||1;
   ctx.save();ctx.globalAlpha=alpha;ctx.translate(Math.round(x),Math.round(y));if(flip)ctx.scale(-1,1);ctx.drawImage(asheet,s.x+f*F,sy+r*F,F,F,-F*scale*wide/2,-G*scale,F*scale*wide,F*scale);ctx.restore();return true;}
@@ -742,7 +742,7 @@ function updateMusic(){if(!AC)return;musicMaster();if(document.hidden){playMusic
   // loop, takes over for as long as the player sits there. In-game menus use the menu theme too.
   if(mus.ended===OPENING.track)mus.openingDone=true;
   const titleish=!S||uiModal==='title'||uiModal==='opening';
-  const want=titleish?(mus.openingDone?'menu':OPENING.track):uiModal?'menu':S.over?'lose':S.battle?'horde':S.playWin?'win':night?'night':'day';
+  const want=titleish?(mus.openingDone?'menu':OPENING.track):uiModal?'menu':S.over?'lose':(S.battle&&S.battle.kind!=='prowl')?'horde':S.playWin?'win':night?'night':'day';
   if(want==='lose'&&mus.ended==='lose'&&mus.id===null)return;
   if(want!=='lose')mus.ended=null;
   playMusic(want);}
@@ -847,7 +847,8 @@ function defenseParts(){
   return {guards,posted,total:guards+posted};
 }
 const buildPts=()=>Math.round(inJob('builder').reduce((n,p)=>n+tier(p.st.str)*eff(p),0)*buildMult()*10)/10;
-const hordeStrength=day=>Math.round((4+day*0.8)*(seasonIdx(day)===3?1.25:1)*M().horde);
+const hordeStrength=day=>Math.round((4+day*0.8)*1.4*(seasonIdx(day)===3?1.25:1)*M().horde);   // the big herd, on horde days
+const prowlStrength=day=>Math.max(1,Math.min(6,Math.round(hordeStrength(day)/5.5)));            // the few that test a wall most other nights
 const nextHordeDay=()=>{const e=M().every;const d=S.day%e===0?S.day:S.day+(e-S.day%e);return (d===S.day&&S.hour>=HORDE_HOUR)?d+e:d;};
 const daysLeft=(stock,net)=>net>=0?Infinity:Math.floor(stock/-net);
 const attraction=()=>{const f=fire();if(!f)return 0;const prod=production(),cons=consumption();
@@ -899,6 +900,9 @@ function tick(){
   if(S.hour===warnHour&&S.day%e===0&&S.hordeDone!==S.day&&S.hordeWarned!==S.day){S.hordeWarned=S.day;const d=defenseParts();const preview=previewHorde();
     alert_('Herd sighted',`${W()==='fog'?'Shapes in the fog, close: ':earlyEyes()?'Your lookouts count them early: ':'Dust on the tree line. '}${preview}. They hit the wall at dusk (${HORDE_HOUR}:00). You have ${d.posted} animal power on the walls and ${d.guards} from guards.${isWinter()?' It is winter: reptiles and frogs outside the fire\'s warmth fight at half strength.':''}`,'bad');}
   if(S.hour===HORDE_HOUR&&S.day%e===0&&S.hordeDone!==S.day){S.hordeDone=S.day;startBattle();}
+  // prowlers: on most nights that are not horde nights, once any wall stands, a few infected test a wall at a random hour
+  if(S.hour===21&&S.day%e!==0&&S.day>=3&&!S.battle&&fronts().some(f=>S.walls[f].lvl)&&S.prowlDay!==S.day){S.prowlDay=S.day;S.prowlAt=Math.random()<0.7?[21,22,23,0,1][rnd(5)]:null;}
+  if(S.prowlAt!=null&&S.hour===S.prowlAt&&!S.battle&&(S.hour>=21?S.prowlDay===S.day:S.prowlDay===S.day-1)){S.prowlAt=null;startBattle({kind:'prowl'});}
   if(S.battle&&S.hour===6){const B=S.battle;const n=B.enemies.length+B.waves.slice(B.wave).reduce((a,w)=>a+w.length,0);B.fled=(B.fled||0)+n;B.enemies=[];B.wave=B.waves.length;log(`Dawn. ${n} infected slink back into the trees.`,'s');endBattle();}
   if(S.hour>=24){S.hour=0;S.day+=1;midnight();}
   render();save();
@@ -1009,6 +1013,7 @@ const TIPS={
   morale:{t:'Morale is low',b:()=>`Morale is ${S.morale}/10. It drops when people go hungry or die, and rises with a medic, good food and wins. At 0 someone leaves. Feed everyone and keep the fire lit.`,go:['Open People','people']},
   levelled:{t:'Someone improved',b:(txt)=>`${txt}: people get better at their job the longer they do it, raising the stat that job uses. Keep people in a job and they outproduce a newcomer.`,go:['Open People','people']},
   night:{t:'Night falls',b:()=>`At night everyone who is not a guard goes into the shelter to sleep (the number over its roof shows how many are inside); the wounded rest on bedrolls outside. Animals in the pen sleep too. Guards stay up, and during a horde the workers run inside.`},
+  prowl:{t:'Prowlers',b:(dir)=>`A few infected are testing the ${DIRS[dir].toLowerCase()} wall. Most nights that are not horde nights bring prowlers: fewer, slower, no warning, at a random hour. Your posted animals and guards handle them, and every kill drops hide and bone. The real herd comes on horde days at dusk (WALLS shows the day), bigger and in waves: that is the one to prepare for.`,go:['Open Walls','walls']},
   enemy:{t:(t)=>`${ENEMY[t].name}s`,b:(t)=>`First time at your walls: ${ENEMY[t].desc}`,go:['Open Walls','walls']},
 };
 function tip(key,arg,now){const T=TIPS[key];if(!T||CFG.tips===false)return;S.tips=S.tips||{};const k=key+(key==='enemy'?':'+arg:'');if(S.tips[k])return;S.tips[k]=S.day;
@@ -1017,20 +1022,24 @@ function alert_(title,body,cls,now){if(S.battle&&!now&&!S.over){(S.deferred=S.de
 
 /* ---------- battle ---------- */
 function hordePool(day){let pool=Object.keys(ENEMY).filter(k=>ENEMY[k].min<=day);if(seasonIdx(day)===3)pool=pool.concat(pool.filter(k=>['cow','boar','wolf','bear'].includes(k)));return pool;}
-function rollHorde(day){const pool=hordePool(day);const list=[];let budget=hordeStrength(day);let guard=0;
+function rollHorde(day,budget=hordeStrength(day)){const pool=hordePool(day);const list=[];let guard=0;
   while(budget>0&&guard++<80){const t=pick(pool);const e=ENEMY[t];if(e.cost>budget&&budget>=2)continue;if(e.cost>budget)break;budget-=e.cost;list.push(t);if(e.flock)list.push(t,t);}return list;}
 function previewHorde(){if(!S.rolled||S.rolled.day!==S.day)S.rolled={day:S.day,list:rollHorde(S.day)};const c={};S.rolled.list.forEach(t=>c[t]=(c[t]||0)+1);
   return earlyEyes()?Object.entries(c).map(([t,n])=>`${n} ${plural(ENEMY[t].name.toLowerCase(),n)}`).join(', '):`about ${S.rolled.list.length} infected`;}
-function startBattle(){
-  const fr=fronts();const nFronts=S.day>=15&&fr.length>1?Math.min(2,fr.length):1;
+/* Two kinds of attack. The horde: on horde days at dusk, big, in waves, announced. The prowl: most other
+   nights a few infected test one wall, slower and unannounced, so there is loot to earn between hordes. */
+function startBattle(opts={}){
+  const prowl=opts.kind==='prowl';
+  const fr=fronts();const nFronts=!prowl&&S.day>=15&&fr.length>1?Math.min(2,fr.length):1;
   const dirs=fr.slice().sort(()=>Math.random()-0.5).slice(0,nFronts);
-  const list=(S.rolled&&S.rolled.day===S.day)?S.rolled.list:rollHorde(S.day);
+  const list=prowl?rollHorde(S.day,prowlStrength(S.day)):(S.rolled&&S.rolled.day===S.day)?S.rolled.list:rollHorde(S.day);
   const newTypes=[...new Set(list)].filter(t=>!(S.stats.met||[]).includes(t)&&t!=='squirrel');
-  const nW=list.length>=7?3:list.length>=3?2:1;const waves=[];for(let i=0;i<nW;i++)waves.push([]);
+  const nW=prowl?1:list.length>=8?4:list.length>=5?3:2;const waves=[];for(let i=0;i<nW;i++)waves.push([]);
   list.slice().sort((a,b)=>ENEMY[a].cost-ENEMY[b].cost).forEach((t,i)=>waves[Math.min(nW-1,Math.floor(i*nW/list.length))].push(t));
-  S.battle={dirs,enemies:[],waves,wave:0,lull:0,waveT:0,started:S.day,killed:0,fled:0,lost:[],wallDmg:{},people:[],wounded:[],stolen:{},loot:{hide:0,bone:0},ticker:[]};
-  spawnWave();sfx('horn');shake=8;
-  const all=list.map(t=>({type:t}));S.deferred=S.deferred||[];
+  S.battle={kind:prowl?'prowl':'horde',dirs,enemies:[],waves,wave:0,lull:0,waveT:0,started:S.day,killed:0,fled:0,lost:[],wallDmg:{},people:[],wounded:[],stolen:{},loot:{hide:0,bone:0},ticker:[]};
+  spawnWave();S.deferred=S.deferred||[];const all=list.map(t=>({type:t}));
+  if(prowl){sfx('crack');shake=3;log(`Prowlers: ${list.length} infected (${summarize(all)}) at the ${DIRS[dirs[0]].toLowerCase()} wall.`,'e');ticker(`Prowlers at the ${DIRS[dirs[0]].toLowerCase()} wall: ${summarize(all)}`);tip('prowl',dirs[0],true);newTypes.forEach(t=>tip('enemy',t,true));return;}
+  sfx('horn');shake=8;
   log(`HORDE: ${list.length} infected (${summarize(all)}) hit the ${dirs.map(d=>DIRS[d].toLowerCase()).join(' and ')} at dusk${nW>1?' in '+nW+' waves':''}.`,'e');
   newTypes.forEach(t=>tip('enemy',t,true));
   alert_('They\'re here',`${list.length} infected (${summarize(all)}) from the ${dirs.map(d=>DIRS[d].toLowerCase()).join(' and ')}${nW>1?', coming in '+nW+' waves':''}. ${list.includes('bat')?'Bats fly over the wall and go for your birds. ':''}${list.includes('rat')?'Rats slip through a damaged wall and raid the garden. ':''}${list.includes('boar')?'Boars charge and knock defenders back. ':''}${list.includes('wolf')?'Wolves work along the wall looking for a gap. ':''}${list.includes('sheep')?'Sheep come in threes and get in the way. ':''}${list.includes('deer')?'Deer leap a battered wooden wall: keep it patched or have a patrol inside. ':''}${list.includes('bear')?'A bear slams the wall and then stands and fights: post your heaviest animals. ':''}Your animals bite anything that reaches their wall. If a wall breaks, a gap opens and your animals fall back to hold it.`,'bad',true);
@@ -1100,7 +1109,7 @@ function updateBattle(dt){
       if(w.hp<=0){w.hp=0;w.broken=true;S.gates[e.dir]=false;log(`A gap opened in the ${DIRS[e.dir].toLowerCase()} wall.`,'e');tip('gap',e.dir);ticker(`The ${DIRS[e.dir].toLowerCase()} wall broke: hold the gap`);shake=10;puff(e.x,e.y,'#9c6b3c',16,80);sfx('crack');}}}
     else if(E.sneak&&e.inside&&d<20){const fb=nearestFoodBuilding(e.x,e.y);if(fb){const f=FOODBLD[fb.type];const take=Math.min(S.res[f],0.6*dt);S.res[f]-=take;B.stolen[f]=(B.stolen[f]||0)+take;e.stole+=take;if(e.stole>=1){e.stole=0;e.bag=(e.bag||0)+1;floater(e.x,e.y-20,`-1 ${RESN[f].toLowerCase()}`,'#f0b64a');if(e.bag>=3){e.dead=true;B.fled=(B.fled||0)+1;floater(e.x,e.y-30,'got away','#93a386');}}}
       else if(S.eggs.length&&Math.random()<dt*0.3){S.eggs.pop();floater(e.x,e.y-20,'-1 egg','#f0b64a');}}
-    else if(d>2&&canAct){const sp=E.speed*(e.charging?2.3:1)*(e.blind>0?0.2:1)*(isWinter()?0.8:1)*(W()==='rain'||W()==='snow'?0.8:1);e.x+=dx/d*sp*dt;e.y+=dy/d*sp*dt;e.face=dx>0?1:-1;}
+    else if(d>2&&canAct){const sp=E.speed*(S.battle.kind==='prowl'?0.7:1)*(e.charging?2.3:1)*(e.blind>0?0.2:1)*(isWinter()?0.8:1)*(W()==='rain'||W()==='snow'?0.8:1);e.x+=dx/d*sp*dt;e.y+=dy/d*sp*dt;e.face=dx>0?1:-1;}
     if(e.inside&&!E.sneak&&Math.hypot(e.x-hp0.x,e.y-hp0.y)<30){e.dead=true;breach(e);}
     if(e.inside&&!E.sneak&&canAct){guardsP.forEach(p=>{const a=anim[p.id];if(!a||p.wounded)return;if(Math.hypot(a.x-e.x,a.y-e.y)<30){p.hp-=E.dmg*dt;if(p.hp<=0){p.wounded=3;p.hp=0;B.wounded.push(p.name);log(`${p.name} was mauled at the guard post and is out for days.`,'e');sfx('hurt');floater(a.x,a.y-24,'wounded','#ff6b5c');}}});}
   });
@@ -1140,9 +1149,11 @@ function endBattle(){
   const B=S.battle;S.battle=null;
   const wd=Object.entries(B.wallDmg).map(([d,v])=>`${DIRS[d].toLowerCase()} wall -${Math.round(v)}`).join(', ');
   const st=Object.entries(B.stolen).filter(([f,v])=>v>=0.5).map(([f,v])=>`${EM[f]}-${Math.round(v)}`).join(' ');
-  S.lastHorde={day:B.started,dirs:B.dirs,killed:B.killed,lost:B.lost,people:B.people,wounded:B.wounded,wallDmg:wd,stolen:st};
+  if(B.kind==='prowl')S.lastProwl={day:B.started,killed:B.killed,lost:B.lost};else S.lastHorde={day:B.started,dirs:B.dirs,killed:B.killed,lost:B.lost,people:B.people,wounded:B.wounded,wallDmg:wd,stolen:st};
   S.res.hide+=B.loot.hide;S.res.bone+=B.loot.bone;const lootTxt=(B.loot.hide||B.loot.bone)?` Salvaged ${B.loot.hide} hide and ${B.loot.bone} bone from the dead.`:'';
-  const held=!B.people.length&&!B.wounded.length;const fled=B.fled?` ${B.fled} got away.`:'';sfx(held?'win':'lose');
+  const held=!B.people.length&&!B.wounded.length;const fled=B.fled?` ${B.fled} got away.`:'';
+  if(B.kind==='prowl'&&held&&!B.lost.length){log(`Prowlers driven off: ${B.killed} killed${fled}${lootTxt}`,'g');floater(cv.width/2,cv.height/2,`prowlers driven off · ${B.killed} killed${(B.loot.hide||B.loot.bone)?` · +${B.loot.hide} hide +${B.loot.bone} bone`:''}`,'#8fd45c');const dq=S.deferred||[];S.deferred=[];checkMilestones();if(S.res.hide>0||S.res.bone>0)tip('loot');dq.forEach(a=>S.alerts.push(a));return;}
+  sfx(held?'win':'lose');
   log(`${held?'The line held':'Breach'}: ${B.killed} infected killed${B.lost.length?', lost '+B.lost.join(', '):''}${wd?'; '+wd:''}${st?'; rats stole '+st:''}${B.wounded.length?'; wounded '+B.wounded.join(', '):''}${B.people.length?'; '+B.people.join(', ')+' infected':''}.`,held?'g':'e');
   if(Object.values(S.walls).some(w=>w.broken))S.stats.gapHeld++;
   const deferred=S.deferred||[];S.deferred=[];checkMilestones();if(S.res.hide>0||S.res.bone>0)tip('loot');if(B.wounded.length)tip('wounded',B.wounded[0]);alert_(held?'The line held':'Breach',`${B.killed} infected killed.${fled}${lootTxt}${B.lost.length?' Lost '+B.lost.join(', ')+'.':''}${wd?' '+wd[0].toUpperCase()+wd.slice(1)+'; idle builders will repair.':''}${st?' Rats stole '+st+'.':''}${B.wounded.length?' '+B.wounded.join(', ')+' wounded: half output for a few days, less with a medic.':''}${B.people.length?' '+B.people.join(', ')+' got bitten inside the base and died.':''}`,held?'good':'bad',true);deferred.forEach(a=>S.alerts.push(a));
@@ -1765,7 +1776,7 @@ function renderDrawer(){
   }
   if(tab==='walls'||tab==='wall'){const fr=fronts();const B=S.battle;title.innerHTML=tab==='wall'?`${ico('wall')}${DIRS[tabArg].toUpperCase()} WALL`:ico('wall')+'WALLS';
     if(B)body.appendChild(el('div','card',`<div class="t"><span class="bad">${ico('skull',1)} ${B.enemies.length} infected at the ${B.dirs.map(x=>DIRS[x].toLowerCase()).join(' and ')}</span><b>${B.killed} down</b></div><div class="muted">${summarize(B.enemies)||''}</div>`));
-    else body.appendChild(el('div','card',`<div class="t"><span>Next horde: day ${nh} at dusk from the ${fr.map(f=>EM[f]+' '+DIRS[f].toLowerCase()).join(' or ')}${S.day>=15&&fr.length>1?' (two fronts at once)':''}</span><b>herd ${hordeStrength(nh)}</b></div><div class="muted">${EM.guard} guards ${d.guards} · animal power on walls ${d.posted}. Enemies stop at the wall and chew; animals posted there bite them over it. ${earlyEyes()?'Your lookouts give 2 extra hours of warning and a head count.':'A pigeon on a wall or a tower gives earlier warning and a head count.'}</div>${S.lastHorde?`<div class="muted">Last: day ${S.lastHorde.day}, ${S.lastHorde.killed} killed${S.lastHorde.lost.length?', lost '+S.lastHorde.lost.join(', '):''}${S.lastHorde.wounded.length?', wounded '+S.lastHorde.wounded.join(', '):''}${S.lastHorde.people.length?', '+S.lastHorde.people.join(', ')+' infected':''}.</div>`:''}`));
+    else body.appendChild(el('div','card',`<div class="t"><span>Next horde: day ${nh} at dusk from the ${fr.map(f=>EM[f]+' '+DIRS[f].toLowerCase()).join(' or ')}${S.day>=15&&fr.length>1?' (two fronts at once)':''}</span><b>herd ${hordeStrength(nh)}</b></div><div class="muted">Most other nights a few prowlers (about ${prowlStrength(S.day)}) test one wall at a random hour: slower, unannounced, good for hide and bone. </div><div class="muted">${EM.guard} guards ${d.guards} · animal power on walls ${d.posted}. Enemies stop at the wall and chew; animals posted there bite them over it. ${earlyEyes()?'Your lookouts give 2 extra hours of warning and a head count.':'A pigeon on a wall or a tower gives earlier warning and a head count.'}</div>${S.lastHorde?`<div class="muted">Last: day ${S.lastHorde.day}, ${S.lastHorde.killed} killed${S.lastHorde.lost.length?', lost '+S.lastHorde.lost.join(', '):''}${S.lastHorde.wounded.length?', wounded '+S.lastHorde.wounded.join(', '):''}${S.lastHorde.people.length?', '+S.lastHorde.people.join(', ')+' infected':''}.</div>`:''}`));
     const order=tab==='wall'?[tabArg].concat(Object.keys(DIRS).filter(x=>x!==tabArg)):Object.keys(DIRS);
     order.forEach(dir=>body.appendChild(wallCard(dir,tab==='wall'&&dir===tabArg)));
   }
