@@ -65,6 +65,7 @@ canvas#map{image-rendering:pixelated;display:block;max-width:100%;max-height:100
 .modal .box.wide{max-width:680px}
 .modal .box.bad{filter:drop-shadow(6px 6px 0 rgba(0,0,0,.5)) drop-shadow(0 0 10px rgba(255,80,60,.5))}
 .modal .box.good{filter:drop-shadow(6px 6px 0 rgba(0,0,0,.5)) drop-shadow(0 0 10px rgba(143,212,92,.45))}
+.modal .box.tipcard{filter:drop-shadow(6px 6px 0 rgba(0,0,0,.5)) drop-shadow(0 0 10px rgba(240,182,74,.5))}.modal .box.tipcard h3{color:#8a4a12}.modal .box.tipcard h3::before{content:'HOW IT WORKS · ';font-size:11px;letter-spacing:1px;opacity:.7}
 .modal .box.scroll{border-image:url(assets/toffeecraft-ui/scroll.png) 30 fill stretch;border-width:40px 30px}
 .modal .box.scroll::before{display:none}
 .modal h3{font-family:var(--body);font-size:21px;font-weight:700;margin:0;line-height:1.3;display:flex;align-items:center;gap:8px;letter-spacing:.3px;color:var(--ink)}
@@ -415,6 +416,9 @@ function drawNight(dark,fireT){lctx.globalCompositeOperation='source-over';lctx.
   if(fireT){const cx=fireT.x*T+T/2,cy=fireT.y*T+T/2;const g=ctx.createRadialGradient(cx,cy,2,cx,cy,120);g.addColorStop(0,`rgba(255,170,70,${dark*.55})`);g.addColorStop(1,'rgba(255,170,70,0)');ctx.fillStyle=g;ctx.fillRect(cx-120,cy-120,240,240);}}
 
 const ICON_NAMES={wood:'Wood',scrap:'Scrap',greens:'Greens: food for people, lizards and turtles',rodents:'Rodents: food for snakes and eagles',insects:'Insects: food for frogs and most birds',research:'Research points',morale:'Morale',people:'People',beds:'Beds',animals:'Animals',pen:'Pen',egg:'Egg',hide:'Hide: salvaged from dead infected, used in the Workshop',bone:'Bone: salvaged from dead infected, used in the Workshop',workshop:'Workshop',crafter:'Crafter',armor:'Armour slot',weapon:'Weapon slot',wall:'Wall',gate:'Gate',tower:'Tower',fire:'Signal fire',skull:'Deaths',trophy:'Milestone',radio:'The radio: contact on day 30 with a relay standing',scroll:'Story',check:'Done',lock:'Locked',heal:'Wounded',str:'Strength',spd:'Speed',int:'Intelligence',leaf:'Spring',sunflower:'Summer',mushroom:'Autumn',ice:'Winter',water:'Rain',air:'Fog',builder:'Builder',scout:'Scout',farmer:'Farmer',lumberjack:'Lumberjack',scrapper:'Scrapper',trapper:'Trapper',bugkeeper:'Bug keeper',keeper:'Keeper',researcher:'Researcher',guard:'Guard',Farmer:'Farmer skill',Mechanic:'Mechanic skill',Soldier:'Soldier skill',Medic:'Medic skill',Child:'Child',basket:'Supplies',settings:'Settings',music:'Music',alert:'Warning'};
+const icoImg=new Image();let icoReady=false;icoImg.src='icons.png';icoImg.onload=()=>{icoReady=true;};
+// a 16 px icon drawn on the map (hunger bubbles)
+function cico(name,x,y,sz=16){const k=ICONS.icons[name];if(!k||!icoReady)return false;ctx.drawImage(icoImg,k.x,k.y,16,16,Math.round(x-sz/2),Math.round(y-sz/2),sz,sz);return true;}
 const ico=(name,small)=>{const k=ICONS.icons[name];if(!k)return '';return `<i class="ic${small?' s':''}" title="${(ICON_NAMES[name]||name).replace(/"/g,'&quot;')}" style="background-position:-${k.x*(small?1.5:2)}px -${k.y*(small?1.5:2)}px"></i>`;};
 /* instant tooltip: shows any element's title right away in a parchment tag */
 (()=>{let tipEl=null,cur=null;const show=(t,x,y)=>{if(!tipEl){tipEl=document.createElement('div');tipEl.className='tt';document.body.appendChild(tipEl);}tipEl.textContent=t;tipEl.hidden=false;const r=tipEl.getBoundingClientRect();tipEl.style.left=Math.max(4,Math.min(window.innerWidth-r.width-4,x+12))+'px';tipEl.style.top=(y+18+r.height>window.innerHeight?y-r.height-8:y+18)+'px';};
@@ -622,7 +626,7 @@ const MODES={
 const rnd=n=>Math.floor(Math.random()*n);
 const pick=a=>a[rnd(a.length)];
 const K=(x,y)=>x+','+y;
-let CFG={shake:true,finishAlerts:true,summary:'auto',music:0.5,sfx:1,zoom:true,tutorial:null,fx:true};
+let CFG={shake:true,finishAlerts:true,summary:'auto',music:0.5,sfx:1,zoom:true,tutorial:null,fx:true,tips:true};
 const SFXGAIN=()=>2.4*(CFG.sfx==null?1:CFG.sfx);let uiModal=null,confirmMode=null;
 let S=null, sel=null, buildSel=null, hoverTile=null, timer=null, tab=null, tabArg=null, lastFrame=0, shake=0, hammerT=0, drag=null, pickChip=null, pickSlot=null;
 const anim={};const particles=[];const floaters=[];let dtReal=0;
@@ -809,6 +813,7 @@ const seasonIdx=(day=S.day)=>Math.floor((day-1)/SEASON_DAYS)%4;
 const season=(day)=>SEASONS[seasonIdx(day)];
 const isWinter=()=>seasonIdx()===3;
 const isBreeding=()=>seasonIdx()<=1;
+const nextLayIn=()=>{const every=penLvl()>=3?3:4;return (every-(S.day%every))%every||every;};   // days until the pen's next egg night
 const seasonDay=()=>((S.day-1)%SEASON_DAYS)+1;
 const personOut=p=>{const j=JOBS[p.job];if(!j||!j.res)return 0;let v=(tierOut(p.st[j.stat])+jobEff(p.job)+(hasR('tools')?1:0)+(j.res==='greens'&&hasPerk('greenthumb')?1:0))*eff(p);
   if(j.res==='greens'){const g3=builtOf('garden').some(t=>t.lvl>=3)||hasR('greenhouse');if(isWinter()&&!g3)v*=0.5;if(seasonIdx()===0)v*=1.25;if(W()==='rain')v*=1.5;}return v;};
@@ -862,10 +867,10 @@ function setSpeed(n){S.speed=n;if(timer){clearInterval(timer);timer=null;}
 function pause(){setSpeed(0);}
 function tick(){
   if(S.over||S.alerts.length||uiModal){pause();return;}
-  S.hour+=1;if(S.hour%3===0)checkTrophies();
+  S.hour+=1;if(S.hour%3===0)checkTrophies();if(S.hour===22&&builtOf('shelter').length)tip('night');
   const prod=production();Object.entries(prod).forEach(([k,v])=>{S.res[k]+=v/24;});
   if(S.craft.length){let cp=inJob('crafter').filter(p=>!p.wounded).reduce((n,p)=>n+(1+(p.st.int>=3?1:0)+jobEff('crafter'))*eff(p),0)/24;
-    while(cp>0&&S.craft.length){const j=S.craft[0];const use=Math.min(j.work-j.done,cp);j.done+=use;cp-=use;if(j.done>=j.work-1e-6){S.craft.shift();S.gear[j.id]=(S.gear[j.id]||0)+1;S.stats.crafted++;log(`Workshop: ${GEAR[j.id].n} is ready. Equip it in the Animals tab.`,'g');sfx('done');const ws=builtOf('workshop')[0];if(ws){const c=tileCenter(K(ws.x,ws.y));floater(c.x,c.y-24,GEAR[j.id].n+' ready','#8fd45c');}}}}
+    while(cp>0&&S.craft.length){const j=S.craft[0];const use=Math.min(j.work-j.done,cp);j.done+=use;cp-=use;if(j.done>=j.work-1e-6){S.craft.shift();S.gear[j.id]=(S.gear[j.id]||0)+1;tip('gear',GEAR[j.id].n);S.stats.crafted++;log(`Workshop: ${GEAR[j.id].n} is ready. Equip it in the Animals tab.`,'g');sfx('done');const ws=builtOf('workshop')[0];if(ws){const c=tileCenter(K(ws.x,ws.y));floater(c.x,c.y-24,GEAR[j.id].n+' ready','#8fd45c');}}}}
   if(S.hour%6===3&&!S.battle){GATHER.concat(['lab']).forEach(k=>{const ts=builtOf(k);if(!ts.length)return;const res=JOBS[BUILD[k].job].res;const v=prod[res]||0;if(v<=0)return;const t=ts[0];const c=tileCenter(K(t.x,t.y));floater(c.x+(Math.random()-0.5)*20,c.y-20,`+${Math.round(v/4*10)/10} ${RESN[res]||res}`,'#dcbd8f');});}
   let pts=buildPts()/24;
   if(!S.battle&&pts>0){const br=Object.entries(S.walls).find(([d,w])=>w.lvl&&w.broken);if(br){const [d,w]=br;const need=wallMax(w.lvl)*0.25-w.hp;const take=Math.min(need,pts*2);if(take>0){w.hp+=take;pts-=take/2;}if(w.hp>=wallMax(w.lvl)*0.25){w.broken=false;log(`The gap in the ${DIRS[d].toLowerCase()} wall is patched.`,'g');alert_('Gap patched',`Builders closed the gap in the ${DIRS[d].toLowerCase()} wall. It still needs repairs before the next horde.`,'good');}}}
@@ -907,11 +912,11 @@ function midnight(){
   if(h){let keep=inJob('keeper').reduce((n,p)=>n+(p.st.int>=4?2:1)*(p.wounded?0.5:1),0)+(LV(h).auto||0)+(hasR('incubators')?1:0);
     for(let i=0;i<Math.floor(keep)&&S.eggs.length;i++)S.eggs[i%S.eggs.length].p+=1;
     const need2=eggNeed();let room=Math.max(0,penCap()-penned());const hatched=[];S.eggs=S.eggs.filter(e=>{if(e.p>=need2&&room>0){room--;hatched.push(e);return false;}return true;});if(S.eggs.some(e=>e.p>=need2))R.hatched.push('(an egg is ready but the pen is full)');
-    hatched.forEach(e=>{addCreature(e.sp);R.hatched.push(SPECIES[e.sp].name);S.stats.hatched++;});if(hatched.length)sfx('hatch');}
+    hatched.forEach(e=>{addCreature(e.sp);R.hatched.push(SPECIES[e.sp].name);R.hatchedSp=R.hatchedSp||e.sp;S.stats.hatched++;});if(hatched.length)sfx('hatch');}
   const layEvery=penLvl()>=3?3:4;
   if(R.day%layEvery===0&&isBreeding()){const bySp={};S.creatures.filter(c=>c.post==='pen').forEach(c=>bySp[c.sp]=(bySp[c.sp]||0)+1);
     let room=penCap()-penned()-S.eggs.length;
-    Object.entries(bySp).forEach(([sp,n])=>{if(S.breed[sp]===false)return;if(n>=2&&room>0){S.eggs.push({sp,p:0});room-=1;R.laid.push(SPECIES[sp].name);}else if(n>=2)R.laid.push(SPECIES[sp].name+' (no pen room)');});}
+    Object.entries(bySp).forEach(([sp,n])=>{if(S.breed[sp]===false)return;if(n>=2&&room>0){S.eggs.push({sp,p:0});room-=1;R.laid.push(SPECIES[sp].name);R.laidSp=R.laidSp||sp;}else if(n>=2)R.laid.push(SPECIES[sp].name+' (no pen room)');});}
   if(S.people.length>=beds()&&fire()&&Math.random()<attraction()*0.6){R.noBed=true;}
   else if(S.people.length<beds()&&Math.random()<attraction()){
     const n=pick(NAMES.filter(x=>!S.people.some(p=>p.name===x)))||'Stranger';const sk=pick(SK);
@@ -922,6 +927,12 @@ function midnight(){
     const n=pick(NAMES.filter(x=>!S.people.some(p=>p.name===x)))||'Kid';const c=newPerson(n,'Child',st);c.age=0;S.stats.born++;c.job=null;S.people.push(c);S.lastBirth=S.day;R.born=n;sfx('born');}
   if(seasonDay()===1&&S.seasonShown!==S.day){S.seasonShown=S.day;const s=season();sfx('season');alert_(`${s.em} ${s.n} begins`,`${s.d}.${isWinter()?' Check that the fire\'s warmth reaches every front, or post birds.':''}`,isWinter()?'bad':'good');}
   S.weather=rollWeather(S.day);R.weather=S.weather;
+  // first-time tips for whatever happened tonight
+  {const hc=S.creatures.find(c=>c.hunger>0);if(hc)tip('hungry',hc);if(got<need)tip('people_hungry');if(R.starved.length)tip('starved',R.starved[0]);
+    if(R.laidSp)tip('laid',R.laidSp);if(R.hatchedSp)tip('hatched',R.hatchedSp);if(S.creatures.length&&penFull()&&(S.eggs.length||R.laid.some(x=>x.includes('no pen room'))))tip('pen_full');
+    if(R.arrived)tip('arrived',R.arrived);if(R.born)tip('born',R.born);if(R.grew.length)tip('grew',R.grew[0]);if(R.levelled.length)tip('levelled',R.levelled[0]);
+    if(S.morale<=3)tip('morale');const cc=S.creatures.find(c=>c.post==='guard'&&coldFactor(c)<1);if(cc)tip('cold',cc);
+    if(!S.done.length&&RESEARCH.some(r=>!techPrev(r.id)&&S.res.research>=r.cost))tip('research');if(S.people.some(p=>p.wounded))tip('wounded',S.people.find(p=>p.wounded).name);}
   S.evId=null;if(S.day>1&&S.day%M().every!==0&&Math.random()<0.3){const pool=Object.keys(EVENTS).filter(k=>!EVENTS[k].when||EVENTS[k].when());if(pool.length){S.evId=pick(pool);S.evHour=8+rnd(9);}}
   const st=STORY.find(s=>s.day===S.day);if(st)alert_(st.title,st.body,'scroll');
   if(S.day>=31&&!S.contact){if(relay()){S.contact=true;S.playWin=true;sfx('win');alert_(ico('radio')+' Contact',`The relay crackles and a voice answers by name. There are others out there: a hospital holding out in the hills, a seed vault, a radio net of bases like yours. They have maps.<br><br><b>Expeditions unlock in the next build.</b> Until then, the base is the game: hold the wall, grow the herd, and keep them talking.`,'good');}
@@ -954,9 +965,37 @@ function finishQueue(){const out=[];let n0=S.queue.length;
     else if(q.kind==='clear'){S.open.push(q.dir);S.res.wood+=CLEAR.gain;openCorners();}
     else if(q.kind==='wall'){S.walls[q.dir]={lvl:q.lvl,hp:wallMax(q.lvl)};}
     else if(q.kind==='gate'){S.gates[q.dir]=true;}
-    else if(q.kind==='tower'){S.towers[q.dir]=true;}
+    else if(q.kind==='tower'){S.towers[q.dir]=true;tip('tower',q.dir);}
     out.push(queueName(q));log(`Finished: ${queueName(q)}.`,'g');if(q.kind!=='up')sfx('done');return false;});
   if(out.length)checkMilestones();return out;}
+/* First-time tips: the first time something happens in a game, in any mode, a card explains it and
+   what to do about it. Each fires once per game (S.tips); CFG.tips turns them all off. */
+const TIPS={
+  hungry:{t:'An animal went hungry',b:(c)=>`${c.name||SPECIES[c.sp].name} the ${SPECIES[c.sp].name.toLowerCase()} found nothing to eat tonight: that is the <b>!</b> and the sweat drop over its head. Every animal eats its own food every other night: ${EM.greens} greens from gardens (farmers), ${EM.rodents} rodents from rodent traps (trappers), ${EM.insects} insects from the insect hut (bug keepers). Three missed meals and it starves. Open ANIMALS to see who needs what, and build or staff the right producer.`,go:['Open Animals','animals']},
+  people_hungry:{t:'People went hungry',b:()=>`Everyone eats one ${EM.greens} greens a night. Tonight there were not enough, and morale fell. Build another garden or put more farmers on the ones you have; the top bar shows greens per day next to the stock.`,go:['Open Build','build']},
+  starved:{t:'An animal starved',b:(name)=>`${name} missed three meals and died. Hungry animals show a <b>!</b> and a sweat drop; the ANIMALS panel lists what each one needs and where it comes from.`,go:['Open Animals','animals']},
+  laid:{t:'An egg was laid',b:(sp)=>`Two ${SPECIES[sp].name.toLowerCase()}s resting together in the pen laid an egg. Pairs in the pen lay one every 4 days (3 with a level 3 pen) in spring and summer, as long as the pen has room. Eggs wait at the hatchery for a <b>keeper</b> to hatch them.`,go:['Open Animals','animals']},
+  hatched:{t:'An egg hatched',b:(sp)=>`A ${SPECIES[sp].name.toLowerCase()} hatched and went to the pen. Keepers at the hatchery add a keeper-day to an egg each night; at ${eggNeed()} it hatches, if the pen has room. Hatchlings are the same species as the egg: the stronger forms come from research and the Grow button on an animal's card.`,go:['Open Animals','animals']},
+  pen_full:{t:'The pen is full',b:()=>`Every animal resting in the pen takes a slot (${penCap()} right now). While it is full no egg is laid or hatched. Post animals to a wall or patrol (they do not use pen slots there), or upgrade the pen.`,go:['Open Animals','animals']},
+  arrived:{t:'A survivor arrived',b:(txt)=>`${txt} walked in from the forest, drawn by the signal fire. New arrivals start as builders: drag them onto a job in PEOPLE. Survivors only stay while there is a free bed, so a bigger shelter means more hands.`,go:['Open People','people']},
+  born:{t:'A child was born',b:(name)=>`${name} was born. Children need a bed and grow up in ${ADULT_DAYS} days, then take a job. Births need two adults, morale 7 or more and a free bed.`,go:['Open People','people']},
+  grew:{t:'A child grew up',b:(name)=>`${name} is old enough to work and started as a builder. Drag them onto a job in PEOPLE.`,go:['Open People','people']},
+  wounded:{t:'Someone is wounded',b:(name)=>`${name} is hurt and rests on a bedroll by the shelter at half output until healed. A survivor with the Medic skill heals everyone twice as fast.`,go:['Open People','people']},
+  gap:{t:'A wall broke',b:(dir)=>`The ${DIRS[dir].toLowerCase()} wall has a gap. Your animals on that wall fall back to hold the gap, and anything that gets through heads for the hatchery. Patrol animals catch what gets inside. After the fight, builders patch the wall by themselves; stronger walls (research) break far less.`,go:['Open Walls','walls']},
+  inside:{t:'One got inside the walls',b:()=>`An infected animal is inside the base. Animals on walls only bite over their wall; it is the <b>patrol</b> that hunts anything inside. Drag an animal onto the guard post to put it on patrol (3 slots, plus 2 per guard post level). If nothing stops it, it goes for the hatchery and the eggs.`,go:['Open Animals','animals']},
+  loot:{t:'Hide and bone',b:()=>`Dead infected leave ${EM.hide} hide and ${EM.bone} bone. From day 6 you can build a Workshop; a crafter there turns them into armour and weapons, which you equip from an animal's card in ANIMALS.`,go:['Open Build','build']},
+  gear:{t:'Gear is ready',b:(name)=>`The workshop finished a ${name}. It is in the store: open ANIMALS, tap an animal, and equip it under GEAR. Armour adds HP, weapons add power.`,go:['Open Animals','animals']},
+  research:{t:'Research is ready',b:()=>`You have enough research points for your first project. Research unlocks stronger walls, watchtowers, greenhouses and the second and third forms of each animal line.`,go:['Open Research','research']},
+  grow:{t:'An animal can grow',b:(to)=>`You researched the ${SPECIES[to].name}. Open ANIMALS, tap a ${SPECIES[SPECIES[to].from].name.toLowerCase()} and press <b>Grow</b>: it becomes a ${SPECIES[to].name} (${SPECIES[to].abd.split(':')[0].toLowerCase()}) for a little scrap and food.`,go:['Open Animals','animals']},
+  cold:{t:'An animal is cold',b:(c)=>`${c.name||SPECIES[c.sp].name} shows a ❄: a cold-blooded animal posted outside the signal fire's warmth fights at half strength in winter. Upgrade the fire so its warmth reaches the wall, or post warm-blooded birds (rooster, turkey, emu, pigeon) on the cold fronts.`,go:['Open Animals','animals']},
+  tower:{t:'The watchtower',b:(dir)=>`Nobody climbs the ${DIRS[dir].toLowerCase()} tower: it is a firing platform for your <b>guards</b> (People → Guard, working from the guard post). Every guard shot at this wall now does double damage, and the tower spots hordes two hours early with a head count. Towers sit in the middle of a wall; animals take the slots either side.`,go:['Open Walls','walls']},
+  morale:{t:'Morale is low',b:()=>`Morale is ${S.morale}/10. It drops when people go hungry or die, and rises with a medic, good food and wins. At 0 someone leaves. Feed everyone and keep the fire lit.`,go:['Open People','people']},
+  levelled:{t:'Someone improved',b:(txt)=>`${txt}: people get better at their job the longer they do it, raising the stat that job uses. Keep people in a job and they outproduce a newcomer.`,go:['Open People','people']},
+  night:{t:'Night falls',b:()=>`At night everyone who is not a guard goes into the shelter to sleep (the number over its roof shows how many are inside); the wounded rest on bedrolls outside. Animals in the pen sleep too. Guards stay up, and during a horde the workers run inside.`},
+  enemy:{t:(t)=>`${ENEMY[t].name}s`,b:(t)=>`First time at your walls: ${ENEMY[t].desc}`,go:['Open Walls','walls']},
+};
+function tip(key,arg,now){const T=TIPS[key];if(!T||CFG.tips===false)return;S.tips=S.tips||{};const k=key+(key==='enemy'?':'+arg:'');if(S.tips[k])return;S.tips[k]=S.day;
+  const t=typeof T.t==='function'?T.t(arg):T.t,b=typeof T.b==='function'?T.b(arg):T.b;S.alerts.push({title:`${ico('journal',1)} ${t}`,body:b,cls:'tipcard',go:T.go,tip:true});pause();}
 function alert_(title,body,cls,now){if(S.battle&&!now&&!S.over){(S.deferred=S.deferred||[]).push({title,body,cls});return;}S.alerts.push({title,body,cls});if(cls==='bad')sfx('alert');pause();}
 
 /* ---------- battle ---------- */
@@ -969,12 +1008,14 @@ function startBattle(){
   const fr=fronts();const nFronts=S.day>=15&&fr.length>1?Math.min(2,fr.length):1;
   const dirs=fr.slice().sort(()=>Math.random()-0.5).slice(0,nFronts);
   const list=(S.rolled&&S.rolled.day===S.day)?S.rolled.list:rollHorde(S.day);
+  const newTypes=[...new Set(list)].filter(t=>!(S.stats.met||[]).includes(t)&&t!=='squirrel');
   const nW=list.length>=7?3:list.length>=3?2:1;const waves=[];for(let i=0;i<nW;i++)waves.push([]);
   list.slice().sort((a,b)=>ENEMY[a].cost-ENEMY[b].cost).forEach((t,i)=>waves[Math.min(nW-1,Math.floor(i*nW/list.length))].push(t));
   S.battle={dirs,enemies:[],waves,wave:0,lull:0,waveT:0,started:S.day,killed:0,fled:0,lost:[],wallDmg:{},people:[],wounded:[],stolen:{},loot:{hide:0,bone:0},ticker:[]};
   spawnWave();sfx('horn');shake=8;
   const all=list.map(t=>({type:t}));S.deferred=S.deferred||[];
   log(`HORDE: ${list.length} infected (${summarize(all)}) hit the ${dirs.map(d=>DIRS[d].toLowerCase()).join(' and ')} at dusk${nW>1?' in '+nW+' waves':''}.`,'e');
+  newTypes.forEach(t=>tip('enemy',t,true));
   alert_('They\'re here',`${list.length} infected (${summarize(all)}) from the ${dirs.map(d=>DIRS[d].toLowerCase()).join(' and ')}${nW>1?', coming in '+nW+' waves':''}. ${list.includes('bat')?'Bats fly over the wall and go for your birds. ':''}${list.includes('rat')?'Rats slip through a damaged wall and raid the garden. ':''}${list.includes('boar')?'Boars charge and knock defenders back. ':''}${list.includes('wolf')?'Wolves work along the wall looking for a gap. ':''}${list.includes('sheep')?'Sheep come in threes and get in the way. ':''}${list.includes('deer')?'Deer leap a battered wooden wall: keep it patched or have a patrol inside. ':''}${list.includes('bear')?'A bear slams the wall and then stands and fights: post your heaviest animals. ':''}Your animals bite anything that reaches their wall. If a wall breaks, a gap opens and your animals fall back to hold it.`,'bad',true);
 }
 const COATS={wolf:['wolf','wolf_b','wolf_c'],rat:['rat','rat_b','rat_c']};   // alternate sprites so a pack reads as individuals
@@ -1015,12 +1056,12 @@ function updateBattle(dt){
     let goal;
     if(E.fly){e.inside=true;const prey=guardAnimals.filter(c=>anim[c.id]).sort((a,b)=>(SPECIES[b.sp].bird?1:0)-(SPECIES[a.sp].bird?1:0)||Math.hypot(anim[a.id].x-e.x,anim[a.id].y-e.y)-Math.hypot(anim[b.id].x-e.x,anim[b.id].y-e.y))[0];
       goal=prey?{x:anim[prey.id].x,y:anim[prey.id].y-6}:{x:hp0.x+lane,y:hp0.y+10};}
-    else if(E.sneak&&w.lvl&&w.hp<wallMax(w.lvl)*0.6){e.inside=true;}
-    else if(E.leap&&!e.inside&&w.lvl===1&&!w.broken&&w.hp<wallMax(1)*0.6&&e.atWall){e.inside=true;e.leapT=0.7;ticker(`A deer cleared the battered ${DIRS[e.dir].toLowerCase()} wall`);floater(e.x,e.y-26,'leapt the wall','#f0b64a');}
+    else if(E.sneak&&w.lvl&&w.hp<wallMax(w.lvl)*0.6){e.inside=true;tip('inside',null,true);}
+    else if(E.leap&&!e.inside&&w.lvl===1&&!w.broken&&w.hp<wallMax(1)*0.6&&e.atWall){e.inside=true;tip('inside',null,true);e.leapT=0.7;ticker(`A deer cleared the battered ${DIRS[e.dir].toLowerCase()} wall`);floater(e.x,e.y-26,'leapt the wall','#f0b64a');}
     if(!goal){
       if(!e.inside&&w.lvl&&!w.broken){const g=wallGoal(e.dir);const vert=e.dir==='E'||e.dir==='W';goal={x:g.x+(e.dir==='E'?Math.floor(idx/4)*14:e.dir==='W'?-Math.floor(idx/4)*14:lane+e.laneOff),y:g.y+(vert?lane+e.laneOff:(e.dir==='N'?-1:1)*Math.floor(idx/4)*14)};}
       else if(!e.inside&&w.lvl&&w.broken&&!e.through){const g=gapPoint(e.dir);goal={x:g.x,y:g.y};if(Math.hypot(g.x-e.x,g.y-e.y)<10){e.through=true;e.inside=true;}}
-      else{e.inside=true;if(E.sneak){const fb=nearestFoodBuilding(e.x,e.y);goal=fb?{x:fb.x*T+T/2+lane,y:fb.y*T+T/2+8}:{x:hp0.x+lane,y:hp0.y+10};}else goal={x:hp0.x+lane,y:hp0.y+10};
+      else{e.inside=true;tip('inside',null,true);if(E.sneak){const fb=nearestFoodBuilding(e.x,e.y);goal=fb?{x:fb.x*T+T/2+lane,y:fb.y*T+T/2+8}:{x:hp0.x+lane,y:hp0.y+10};}else goal={x:hp0.x+lane,y:hp0.y+10};
         // the patrol meets it: anything inside turns on the nearest patrol animal in range (a wrecker on anything posted)
         if(!E.sneak){const pool=E.wreck?patrolAnimals.concat(guardAnimals):patrolAnimals;const near=pool.filter(c=>anim[c.id]).map(c=>({c,d:Math.hypot(anim[c.id].x-e.x,anim[c.id].y-e.y)})).filter(o=>o.d<(E.wreck?200:110)).sort((u,v)=>u.d-v.d)[0];if(near){const a=anim[near.c.id];goal={x:a.x,y:a.y};}}}
       if(E.skitter){goal.x+=e.jx;goal.y+=e.jy;}
@@ -1039,7 +1080,7 @@ function updateBattle(dt){
       if(ts.ab==='toxic'){e.dot=Math.max(e.dot,1);e.dotT=Math.max(e.dotT,4);}}
     else if(e.atWall){if(canAct){const mult=(E.ram&&w.lvl===1?3:1)*(E.lean?1.4:1)*WALL_FACTOR;w.hp-=E.dmg*mult*dt;B.wallDmg[e.dir]=(B.wallDmg[e.dir]||0)+E.dmg*mult*dt;e.hit=(e.hit||0)+dt;if(Math.random()<dt*1.5){sfx('crack');shake=Math.max(shake,E.ram?3:1.2);puff(e.x,e.y,'#9c6b3c',2,20);}
       if(hasR('spikes')){hitEnemy(e,0.4*dt);if(e.hp<=0){kill(e);}}
-      if(w.hp<=0){w.hp=0;w.broken=true;S.gates[e.dir]=false;log(`A gap opened in the ${DIRS[e.dir].toLowerCase()} wall.`,'e');ticker(`The ${DIRS[e.dir].toLowerCase()} wall broke: hold the gap`);shake=10;puff(e.x,e.y,'#9c6b3c',16,80);sfx('crack');}}}
+      if(w.hp<=0){w.hp=0;w.broken=true;S.gates[e.dir]=false;log(`A gap opened in the ${DIRS[e.dir].toLowerCase()} wall.`,'e');tip('gap',e.dir);ticker(`The ${DIRS[e.dir].toLowerCase()} wall broke: hold the gap`);shake=10;puff(e.x,e.y,'#9c6b3c',16,80);sfx('crack');}}}
     else if(E.sneak&&e.inside&&d<20){const fb=nearestFoodBuilding(e.x,e.y);if(fb){const f=FOODBLD[fb.type];const take=Math.min(S.res[f],0.6*dt);S.res[f]-=take;B.stolen[f]=(B.stolen[f]||0)+take;e.stole+=take;if(e.stole>=1){e.stole=0;e.bag=(e.bag||0)+1;floater(e.x,e.y-20,`-1 ${RESN[f].toLowerCase()}`,'#f0b64a');if(e.bag>=3){e.dead=true;B.fled=(B.fled||0)+1;floater(e.x,e.y-30,'got away','#93a386');}}}
       else if(S.eggs.length&&Math.random()<dt*0.3){S.eggs.pop();floater(e.x,e.y-20,'-1 egg','#f0b64a');}}
     else if(d>2&&canAct){const sp=E.speed*(e.charging?2.3:1)*(e.blind>0?0.2:1)*(isWinter()?0.8:1)*(W()==='rain'||W()==='snow'?0.8:1);e.x+=dx/d*sp*dt;e.y+=dy/d*sp*dt;e.face=dx>0?1:-1;}
@@ -1087,7 +1128,7 @@ function endBattle(){
   const held=!B.people.length&&!B.wounded.length;const fled=B.fled?` ${B.fled} got away.`:'';sfx(held?'win':'lose');
   log(`${held?'The line held':'Breach'}: ${B.killed} infected killed${B.lost.length?', lost '+B.lost.join(', '):''}${wd?'; '+wd:''}${st?'; rats stole '+st:''}${B.wounded.length?'; wounded '+B.wounded.join(', '):''}${B.people.length?'; '+B.people.join(', ')+' infected':''}.`,held?'g':'e');
   if(Object.values(S.walls).some(w=>w.broken))S.stats.gapHeld++;
-  const deferred=S.deferred||[];S.deferred=[];checkMilestones();alert_(held?'The line held':'Breach',`${B.killed} infected killed.${fled}${lootTxt}${B.lost.length?' Lost '+B.lost.join(', ')+'.':''}${wd?' '+wd[0].toUpperCase()+wd.slice(1)+'; idle builders will repair.':''}${st?' Rats stole '+st+'.':''}${B.wounded.length?' '+B.wounded.join(', ')+' wounded: half output for a few days, less with a medic.':''}${B.people.length?' '+B.people.join(', ')+' got bitten inside the base and died.':''}`,held?'good':'bad',true);deferred.forEach(a=>S.alerts.push(a));
+  const deferred=S.deferred||[];S.deferred=[];checkMilestones();if(S.res.hide>0||S.res.bone>0)tip('loot');if(B.wounded.length)tip('wounded',B.wounded[0]);alert_(held?'The line held':'Breach',`${B.killed} infected killed.${fled}${lootTxt}${B.lost.length?' Lost '+B.lost.join(', ')+'.':''}${wd?' '+wd[0].toUpperCase()+wd.slice(1)+'; idle builders will repair.':''}${st?' Rats stole '+st+'.':''}${B.wounded.length?' '+B.wounded.join(', ')+' wounded: half output for a few days, less with a medic.':''}${B.people.length?' '+B.people.join(', ')+' got bitten inside the base and died.':''}`,held?'good':'bad',true);deferred.forEach(a=>S.alerts.push(a));
 }
 function writeReport(R){
   const fmt=o=>Object.entries(o).map(([k,v])=>`${EM[k]||''}${v}`).join(' ');
@@ -1106,15 +1147,15 @@ function writeReport(R){
 }
 
 /* ---------- actions ---------- */
-function upgradeSpecies(sp){
+function upgradeSpecies(sp,id){
   const to=Object.keys(SPECIES).find(k=>SPECIES[k].from===sp);if(!to||!hasR(SPR[to]))return;
-  const c=S.creatures.find(x=>x.sp===sp);if(!c)return;
+  const c=(id!=null&&S.creatures.find(x=>x.id===id&&x.sp===sp))||S.creatures.find(x=>x.sp===sp);if(!c)return;
   const cost=SPECIES[to].tier===3?{scrap:6,bone:2}:{scrap:3};cost[SPECIES[to].food]=(cost[SPECIES[to].food]||0)+(SPECIES[to].tier===3?4:2);
   if(!canPay(cost)){log(`Upgrading needs ${costStr(cost)}.`,'e');return render();}
   pay(cost);c.sp=to;if(!S.stats.seen.includes(to))S.stats.seen.push(to);c.hunger=0;c.maxhp=baseHp(c);c.hp=c.maxhp;log(`A ${SPECIES[sp].name.toLowerCase()} grew into a ${SPECIES[to].name.toLowerCase()}.`,'g');sfx('done');save();render();
 }
 function research(id){const r=RESEARCH.find(x=>x.id===id);const prev=techPrev(id);if(hasR(id)||S.res.research<r.cost||(prev&&!hasR(prev)))return;
-  S.res.research-=r.cost;S.done.push(id);log(`Research complete: ${r.name}.`,'g');sfx('done');checkMilestones();save();render();}
+  S.res.research-=r.cost;S.done.push(id);log(`Research complete: ${r.name}.`,'g');{const to=Object.keys(SPECIES).find(k=>SPR[k]===id&&SPECIES[k].from&&S.creatures.some(c=>c.sp===SPECIES[k].from));if(to)tip('grow',to);}sfx('done');checkMilestones();save();render();}
 function postCreature(id,where){const c=S.creatures.find(c=>c.id===id);if(!c)return false;
   if(where==='patrol'){if(c.post!=='patrol'&&patrols().length>=patrolCap()){log(`The patrol is full (${patrolCap()} slots: 3, plus 2 for every guard post level. Build or upgrade a guard post for more).`,'e');floater(hatcheryPos().x,hatcheryPos().y-30,'patrol full','#ff6b5c');return false;}c.post='patrol';}
   else if(where==='pen'){if(c.post!=='pen'&&penFull()){log(`The pen is full (${penCap()} slots). Upgrade it or build another.`,'e');floater(hatcheryPos().x,hatcheryPos().y-30,'pen full','#ff6b5c');return false;}c.post='pen';}
@@ -1157,7 +1198,7 @@ cv.addEventListener('pointerup',ev=>{if(!drag)return;const d=drag;drag=null;cv.s
   if(d.moved)return;
   const t=tileFromPos(p);if(!t)return;const tl=tileAt(t.x,t.y);
   const f=frontAt(p);if(f&&!tl&&!buildSel&&!d.creature){sel=null;openTab('wall',f);return render();}
-  if(d.creature&&!buildSel){openTab('animals',d.creature.sp);return render();}
+  if(d.creature&&!buildSel){openTab('animal',d.creature.id);return render();}
   if(!isOpen(t.x,t.y)){sel=null;buildSel=null;if(isSector(t.x,t.y))openTab('build');return render();}
   if(buildSel&&!tl){placeAt(t.x,t.y);return render();}
   sel=tl?K(t.x,t.y):null;buildSel=null;if(tl)openTab('tile');else if(tab==='tile')closeDrawer();render();
@@ -1418,6 +1459,7 @@ function draw(ts){
     const flip=row!=='down'&&row!=='up'&&a.face>0;
     DQ.push({y:a.y+26+(dragging?400:0),fn:()=>{if(!aspr(c.sp,row,frame,a.x+lunge,a.y+8-(dragging?10:0),flip,1.5*(SPECIES[c.sp].scale||1),1,SPECIES[c.sp].wide||1)){ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(Math.round(a.x)-10,Math.round(a.y)+8,20,3);spr(c.sp,a.x+lunge,a.y-(dragging?8:0),2,frame%2,a.face<0);}
     if(c.post==='guard'&&coldFactor(c)<1){ctx.fillStyle='#7ad0e0';ctx.font='10px monospace';ctx.textAlign='center';ctx.fillText('❄',Math.round(a.x)+14,Math.round(a.y)-18);}
+    if(c.hunger>0&&!dragging){const bx=Math.round(a.x)+16,by=Math.round(a.y)-34+Math.round(Math.sin(a.t/20)*1.5);ctx.fillStyle='rgba(250,244,228,.95)';ctx.beginPath();ctx.roundRect(bx-11,by-11,22,22,5);ctx.fill();ctx.beginPath();ctx.moveTo(bx-6,by+10);ctx.lineTo(bx-2,by+15);ctx.lineTo(bx+1,by+10);ctx.fill();const f=SPECIES[c.sp].food;if(f==='rodents'){ctx.save();ctx.translate(bx,by);ctx.scale(0.5,0.5);aspr('mouse','idle',0,0,8,false,1);ctx.restore();}else cico(f,bx,by,16);if(c.hunger>=2){ctx.fillStyle='#d8382a';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText(String(c.hunger),bx+9,by-6);}}
     hpBar(Math.round(a.x),Math.round(a.y)-26,c.hp,c.maxhp);}});
   });
   if(S.battle)S.battle.enemies.forEach(e=>{const E=ENEMY[e.type];const sh=e.hit&&running?Math.sin(tickA)*2:0;const attacking=e.hit>0;e.hit=0;
@@ -1483,7 +1525,7 @@ function renderTut(){const t=$('tut');if(!S||!S.tut||!S.tut.on||uiModal||S.over)
   if(S.tut.step>=TUTORIAL.length){if(S.tut.doneT&&performance.now()-S.tut.doneT<6000){t.hidden=false;t.innerHTML=`<b>TUTORIAL DONE</b><span class="done">You know the basics. The advisor bar at the bottom keeps nagging.</span>`;}else{t.hidden=true;S.tut.on=false;}return;}
   const st=TUTORIAL[S.tut.step];t.hidden=false;t.innerHTML=`<b>TUTORIAL ${S.tut.step+1}/${TUTORIAL.length} · ${st.t.toUpperCase()}</b>${st.b}<div class="tb"><button id="tutSkip">Skip step</button><button id="tutOff">Turn off</button></div>`;
   t.querySelector('#tutSkip').onclick=()=>{S.tut.step++;save();renderTut();};t.querySelector('#tutOff').onclick=()=>{S.tut.on=false;CFG.tutorial=false;save();renderTut();};}
-function renderLive(){renderTut();updateMusic();if(tab==='walls'||tab==='wall'||tab==='animals')renderDrawer();renderHud();const [tag,msg]=advice();const ad=$('advisor');ad.innerHTML=`<b>${tag}</b><span>${msg}</span>`;ad.classList.toggle('fight',!!S.battle);}
+function renderLive(){renderTut();updateMusic();if(tab==='walls'||tab==='wall'||tab==='animals'||tab==='animal')renderDrawer();renderHud();const [tag,msg]=advice();const ad=$('advisor');ad.innerHTML=`<b>${tag}</b><span>${msg}</span>`;ad.classList.toggle('fight',!!S.battle);}
 
 /* ---------- UI ---------- */
 function log(msg,cls=''){S.log.push([msg,cls]);if(S.log.length>150)S.log.shift();if(tab==='log')renderDrawer();}
@@ -1604,62 +1646,97 @@ function renderDrawer(){
       it.appendChild(el('div','n',`${p.name} <span class="muted">${child?`${EM.Child} child · works in ${ADULT_DAYS-p.age} days`:`${EM[p.skill]} ${p.skill} · ${JOBS[p.job].name}${JOBS[p.job].res?' · makes '+EM[JOBS[p.job].res]+personOut(p):''}`}</span>${p.wounded?`<small class="bad">Wounded: half output, ${p.wounded} day${p.wounded>1?'s':''} to heal</small>`:''}<div class="stats">${statBar(p,'str')}${statBar(p,'spd')}${statBar(p,'int')}</div>`));
       const c=el('button','chip2',child?'child':p.job==='builder'?'builds':'✕');c.disabled=child||p.job==='builder';c.onclick=()=>setJob(p.id,'builder');it.appendChild(c);body.appendChild(it);});
   }
-  if(tab==='animals'){title.innerHTML=ico('animals')+'ANIMALS';
-    const bySp={};S.creatures.forEach(c=>{(bySp[c.sp]=bySp[c.sp]||[]).push(c);});const fr=fronts();
-    body.appendChild(el('div','muted',`${S.creatures.length} animals: ${penned()} in the pen (${penCap()} slots), ${S.creatures.filter(c=>c.post==='guard').length} on walls, ${patrols().length} on patrol (${patrolCap()} slots: 3, plus 2 per guard post level). Only animals in the pen take a pen slot. Drag an animal on the map onto a wall to post it, onto the guard post to put it on patrol, or onto the pen to rest it. Walls bite over the wall; the patrol catches whatever gets inside; the pen heals and breeds.`));
-    // by post: who is holding which wall, who is on patrol, who is resting
-    const posts=el('div','job');posts.appendChild(el('div','t','<b>'+ico('wall',1)+' By post</b><span class="muted">tap a name to move it</span>'));
-    const chipRow=(label,list,moveTo)=>{const r=el('div','row');r.appendChild(el('small','muted',label));
-      list.forEach(c=>{const b=el('button','chip2',`${aico(c.sp,20)} ${c.name||SPECIES[c.sp].name} <small class="muted">${Math.ceil(c.hp)}/${c.maxhp}</small>`);b.title=moveTo.label;b.onclick=()=>postCreature(c.id,moveTo.where);r.appendChild(b);});
-      if(!list.length)r.appendChild(el('small','muted','nobody'));posts.appendChild(r);};
-    fr.forEach(f=>chipRow(`${EM[f]} ${DIRS[f]} wall ${guardsOf(f).length}/${wallSlots(f)}`,guardsOf(f),{where:'patrol',label:'send to patrol'}));
-    chipRow(`${ico('spd',1)} Patrol ${patrols().length}/${patrolCap()}`,patrols(),{where:'pen',label:'send to the pen'});
-    chipRow(`${ico('pen',1)} Pen ${penned()}/${penCap()}`,S.creatures.filter(c=>c.post==='pen'),{where:fr[0]||'patrol',label:fr[0]?`post on the ${DIRS[fr[0]].toLowerCase()} wall`:'send to patrol'});
-    body.appendChild(posts);
-    Object.entries(bySp).forEach(([sp,list])=>{const s=SPECIES[sp];const box=el('div','job'+(tabArg===sp?' focus':''));
-      const where=fr.map(f=>({f,n:list.filter(c=>c.post==='guard'&&c.front===f).length})).filter(x=>x.n);const pen=list.filter(c=>c.post==='pen').length;const hungry=list.filter(c=>c.hunger>0).length;
-      const hp=list.reduce((n,c)=>n+c.hp,0),mx=list.reduce((n,c)=>n+c.maxhp,0);const to=Object.keys(SPECIES).find(k=>SPECIES[k].from===sp);
-      const onPatrol=list.filter(c=>c.post==='patrol').length;
-      box.appendChild(el('div','t',`<b>${icon(sp)} ${s.name} ×${list.length}</b><span>${ico('pen',1)}${pen}${where.map(x=>' '+ico('wall',1)+x.n).join('')}${onPatrol?' '+ico('spd',1)+onPatrol:''}</span>`));
-      box.appendChild(el('small','',`${ico('str',1)} ${s.power} · ${Math.ceil(hp)}/${mx} HP${hungry?` · <span class="bad">${hungry} hungry</span>`:''} · eats ${(s.food==='rodents'?aico('mouse',24):ico(s.food,1))} every 2 days<br>${s.abd}`));
-      const r=el('div','row');
-      if(pen&&fr.length){fr.forEach(f=>{const b=btn(`${ico('wall',1)} 1 to ${DIRS[f].toLowerCase()}`,'',()=>{const c=list.find(c=>c.post==='pen');if(c)postCreature(c.id,f);},'sm');b.disabled=guardsOf(f).length>=wallSlots(f);r.appendChild(b);});}
-      if(list.some(c=>c.post!=='patrol')){const b=btn(`${ico('spd',1)} 1 to patrol`,'catches what gets inside',()=>{const c=list.find(c=>c.post==='pen')||list.find(c=>c.post!=='patrol');if(c)postCreature(c.id,'patrol');},'sm');b.disabled=patrols().length>=patrolCap();r.appendChild(b);}
-      if(list.some(c=>c.post!=='pen'))r.appendChild(btn(`${ico('pen',1)} 1 to pen`,'',()=>{const c=list.find(c=>c.post==='guard')||list.find(c=>c.post==='patrol');if(c)postCreature(c.id,'pen');},'sm'));
-      if(to){if(hasR(SPR[to])){const uc=SPECIES[to].tier===3?{scrap:6,bone:2}:{scrap:3};uc[SPECIES[to].food]=(uc[SPECIES[to].food]||0)+(SPECIES[to].tier===3?4:2);const b=btn(`▲ Grow into ${SPECIES[to].name}`,`${costStr(uc)} · ${SPECIES[to].abd.split(':')[0]}`,()=>upgradeSpecies(sp),'sm');b.disabled=!canPay(uc);r.appendChild(b);}else r.appendChild(el('small','muted',`research ${RESEARCH.find(r=>r.id===SPR[to]).name} to upgrade`));}
-      box.appendChild(r);
-      const roster=el('div','roster');list.forEach(c=>{const rw=el('div','rrow');const where=c.post==='pen'?ico('pen',1)+' pen':c.post==='patrol'?ico('spd',1)+' patrol':ico('wall',1)+' '+DIRS[c.front].toLowerCase();
-        const rn=el('span','rn',`<b>${c.name||s.name}</b><span class="ed" title="Rename">✎</span> <small class="muted">${where} · ${Math.ceil(c.hp)}/${c.maxhp} HP · ${ico('str',1)}${cpower(c)}</small>`);rn.querySelector('.ed').onclick=()=>showRename('animal',c.id);rw.appendChild(rn);
-        ['armor','weapon'].forEach(slot=>{const g=c.gear&&c.gear[slot];const have=Object.keys(GEAR).filter(k=>GEAR[k].slot===slot&&(S.gear[k]||0)>0);
-          if(g){const b=btn(`${ico(slot,1)} ${GEAR[g].n} ✕`,'click to take it off',()=>{S.gear[g]=(S.gear[g]||0)+1;c.gear[slot]=null;refreshHp(c);sfx('click');save();render();},'sm');rw.appendChild(b);}
-          else if(have.length){const b=btn(`${ico(slot,1)} ${GEAR[have[0]].n}`,`equip (${S.gear[have[0]]} in store)`,()=>{S.gear[have[0]]--;c.gear[slot]=have[0];refreshHp(c);sfx('done');save();render();},'sm');rw.appendChild(b);}});
-        roster.appendChild(rw);});box.appendChild(roster);
+  if(tab==='animals'||tab==='animal'){
+    const fr=fronts();const bySp={};S.creatures.forEach(c=>{(bySp[c.sp]=bySp[c.sp]||[]).push(c);});
+    const whereOf=c=>c.post==='pen'?ico('pen',1)+' pen':c.post==='patrol'?ico('spd',1)+' patrol':ico('wall',1)+' '+DIRS[c.front].toLowerCase()+' wall';
+    const foodIco=f=>f==='rodents'?aico('mouse',22):ico(f,1);
+    const mates=c=>S.creatures.filter(o=>o!==c&&o.sp===c.sp&&o.post==='pen');
+    const growTo=sp=>Object.keys(SPECIES).find(k=>SPECIES[k].from===sp);
+    const growCost=to=>{const uc=SPECIES[to].tier===3?{scrap:6,bone:2}:{scrap:3};uc[SPECIES[to].food]=(uc[SPECIES[to].food]||0)+(SPECIES[to].tier===3?4:2);return uc;};
+    // the buttons that move one animal: each wall front, the patrol, the pen; greyed with the reason when full
+    const moveRow=c=>{const r=el('div','row');
+      fr.forEach(f=>{const here=c.post==='guard'&&c.front===f;const full=guardsOf(f).length>=wallSlots(f);const b=btn(`${ico('wall',1)} ${DIRS[f]} wall`,here?'posted here':full?`full ${guardsOf(f).length}/${wallSlots(f)}`:`${guardsOf(f).length}/${wallSlots(f)} · bites over the wall`,()=>postCreature(c.id,f),'sm'+(here?' sel':''));b.disabled=here||full;r.appendChild(b);});
+      {const here=c.post==='patrol';const full=patrols().length>=patrolCap();const b=btn(`${ico('spd',1)} Patrol`,here?'on patrol':full?`full ${patrols().length}/${patrolCap()}`:`${patrols().length}/${patrolCap()} · catches what gets inside`,()=>postCreature(c.id,'patrol'),'sm'+(here?' sel':''));b.disabled=here||full;r.appendChild(b);}
+      {const here=c.post==='pen';const full=penFull();const b=btn(`${ico('pen',1)} Pen`,here?'resting here':full?`full ${penned()}/${penCap()}`:`${penned()}/${penCap()} · heals and breeds`,()=>postCreature(c.id,'pen'),'sm'+(here?' sel':''));b.disabled=here||full;r.appendChild(b);}
+      return r;};
+    // why an animal is hungry and what fixes it
+    const hungerLine=c=>{const f=SPECIES[c.sp].food;const have=fl(S.res[f]);const fix=f==='greens'?'Gardens grow greens: build one and put a farmer on it (or upgrade the garden).':f==='rodents'?'Rodent traps catch rodents: build them and put a trapper on them.':'The Insect hut makes insects: build one and put a bug keeper on it.';
+      return `<span class="bad">${ico('alert',1)} Hungry ${c.hunger} night${c.hunger>1?'s':''} (starves at 3).</span> It eats ${foodIco(f)} ${f} every other night and there ${have===1?'is':'are'} ${have} in store. ${fix}`;};
+    if(tab==='animal'){const c=S.creatures.find(x=>x.id===tabArg);if(!c){openTab('animals');return;}const s=SPECIES[c.sp];const to=growTo(c.sp);
+      title.innerHTML=`${aico(c.sp,32)} ${(c.name||s.name).toUpperCase()}`;
+      body.appendChild(btn('← All animals','',()=>openTab('animals'),'sm'));
+      const head=el('div','item');head.appendChild(el('div','em',aico(c.sp,48)));
+      head.appendChild(el('div','n',`<b>${c.name||s.name}</b> <span class="ed" title="Rename">✎ rename</span><br><small>${s.name} · ${s.group} line, form ${s.tier} of 3 · ${whereOf(c)}</small><br><small>${ico('str',1)} ${cpower(c)} power · ${ico('heart_small',1)} ${Math.ceil(c.hp)}/${c.maxhp} HP · eats ${foodIco(s.food)} every other night${s.bird?' · warm-blooded':' · cold-blooded'}</small><div class="bar2"><i style="width:${Math.round(c.hp/c.maxhp*100)}%"></i></div>`));
+      head.querySelector('.ed').onclick=()=>showRename('animal',c.id);body.appendChild(head);
+      body.appendChild(el('div','',`<b>${ico('ab_'+s.ab)} ${ABN[s.ab]||'No special ability'}</b><br><small>${s.abd}</small>`));
+      if(c.hunger>0)body.appendChild(el('div','card',`<div>${hungerLine(c)}</div>`));
+      if(c.post==='guard'&&coldFactor(c)<1)body.appendChild(el('div','card',`<div><span class="warn">❄ Cold:</span> a cold-blooded animal outside the signal fire's warmth fights at half strength in winter. Upgrade the fire, post it nearer the fire, or swap in a bird.</div>`));
+      body.appendChild(el('h4','','WHERE IT STANDS'));body.appendChild(moveRow(c));
+      body.appendChild(el('small','muted','You can also drag it on the map onto a wall, the guard post (patrol) or the pen.'));
+      body.appendChild(el('h4','','GEAR'));const gr=el('div','row');
+      ['armor','weapon'].forEach(slot=>{const g=c.gear&&c.gear[slot];const have=Object.keys(GEAR).filter(k=>GEAR[k].slot===slot&&(S.gear[k]||0)>0);
+        if(g){const b=btn(`${ico(slot,1)} ${GEAR[g].n} ✕`,'click to take it off',()=>{S.gear[g]=(S.gear[g]||0)+1;c.gear[slot]=null;refreshHp(c);sfx('click');save();render();},'sm');gr.appendChild(b);}
+        else if(have.length){const b=btn(`${ico(slot,1)} ${GEAR[have[0]].n}`,`equip (${S.gear[have[0]]} in store)`,()=>{S.gear[have[0]]--;c.gear[slot]=have[0];refreshHp(c);sfx('done');save();render();},'sm');gr.appendChild(b);}
+        else gr.appendChild(el('small','muted',`no ${slot} in store${builtOf('workshop').length?'':' (needs a Workshop)'}`));});
+      body.appendChild(gr);
+      body.appendChild(el('h4','','GROW'));
+      if(!to)body.appendChild(el('div','muted','Final form of its line.'));
+      else if(!hasR(SPR[to]))body.appendChild(el('div','muted',`Research <b>${RESEARCH.find(r=>r.id===SPR[to]).name}</b> at the lab, then this ${s.name.toLowerCase()} can grow into a ${SPECIES[to].name}.`));
+      else{const uc=growCost(to);const b=btn(`▲ Grow into ${SPECIES[to].name}`,`${costStr(uc)} · ${ico('str',1)} ${SPECIES[to].power}, ${SPECIES[to].hp} HP · ${SPECIES[to].abd.split(':')[0]}`,()=>upgradeSpecies(c.sp,c.id));b.disabled=!canPay(uc);body.appendChild(b);}
+      body.appendChild(el('h4','','BREEDING'));const m=mates(c);
+      if(c.post!=='pen')body.appendChild(el('div','muted',`Only animals resting in the pen breed. Send it to the pen with another ${s.name.toLowerCase()} and the pair lays an egg every ${penLvl()>=3?3:4} days.`));
+      else if(!m.length)body.appendChild(el('div','muted',`Alone in the pen. Put a second ${s.name.toLowerCase()} in the pen and the pair lays an egg every ${penLvl()>=3?3:4} days${S.creatures.some(o=>o!==c&&o.sp===c.sp)?' (you have one on a wall or patrol).':' (hatch or find another one).'}`));
+      else body.appendChild(el('div','',`Paired with <b>${m.map(o=>o.name||s.name).join(', ')}</b>. ${isBreeding()?`Next egg in ${nextLayIn()} day${nextLayIn()>1?'s':''}`:`No eggs in ${season().n.toLowerCase()}; breeding resumes in spring`}${penFull()?'. <span class="bad">The pen is full: no egg until there is room.</span>':'.'} ${S.breed[c.sp]===false?'<span class="warn">On hold.</span>':''}`));
+      if(m.length){const hold=S.breed[c.sp]===false;body.appendChild(btn(hold?`▶ Resume ${s.name} eggs`:`❚❚ Hold ${s.name} eggs`,hold?'this species lays again':'this species stops laying (saves pen room)',()=>toggleBreed(c.sp),'sm'));}
+      return;}
+    title.innerHTML=ico('animals')+'ANIMALS';
+    body.appendChild(el('div','muted',`${S.creatures.length} animals · ${penned()}/${penCap()} in the pen · ${S.creatures.filter(c=>c.post==='guard').length} on walls · ${patrols().length}/${patrolCap()} on patrol. Tap an animal for its card: move it, rename it, equip it, grow it. Walls bite over the wall, the patrol catches whatever gets inside, the pen heals and breeds.`));
+    const hungry=S.creatures.filter(c=>c.hunger>0);
+    if(hungry.length){const need={};hungry.forEach(c=>{need[SPECIES[c.sp].food]=(need[SPECIES[c.sp].food]||0)+1;});
+      body.appendChild(el('div','card',`<div><span class="bad">${ico('alert',1)} ${hungry.length} hungry</span> (the ! and sweat on the map): ${Object.entries(need).map(([f,n])=>`${n} need ${foodIco(f)} ${f} (${fl(S.res[f])} in store)`).join(', ')}. An animal that misses three meals starves. ${Object.keys(need).map(f=>f==='greens'?'Greens come from gardens with farmers.':f==='rodents'?'Rodents come from rodent traps with trappers.':'Insects come from the insect hut with bug keepers.').join(' ')}</div>`));}
+    // the roster: every animal, grouped by where it stands
+    const groups=[].concat(fr.map(f=>[`${EM[f]} ${DIRS[f]} wall ${guardsOf(f).length}/${wallSlots(f)}`,guardsOf(f)]),[[`${ico('spd',1)} Patrol ${patrols().length}/${patrolCap()}`,patrols()],[`${ico('pen',1)} Pen ${penned()}/${penCap()}`,S.creatures.filter(c=>c.post==='pen')]]);
+    groups.forEach(([label,list])=>{const box=el('div','job');box.appendChild(el('div','t',`<b>${label}</b><span class="muted">${list.length?'':'nobody'}</span>`));
+      list.forEach(c=>{const s=SPECIES[c.sp];const it=el('div','item');it.style.cursor='pointer';it.appendChild(el('div','em',aico(c.sp,36)));
+        const flags=[c.hunger>0?`<span class="bad">hungry · needs ${foodIco(s.food)}</span>`:'',c.post==='guard'&&coldFactor(c)<1?'<span class="warn">❄ cold</span>':'',c.gear&&(c.gear.armor||c.gear.weapon)?ico('armor',1):'',c.post==='pen'&&mates(c).length?'<span class="good">paired</span>':'',growTo(c.sp)&&hasR(SPR[growTo(c.sp)])?'<span class="good">▲ can grow</span>':''].filter(Boolean).join(' · ');
+        it.appendChild(el('div','n',`<b>${c.name||s.name}</b> <small class="muted">${s.name} · ${ico('str',1)}${cpower(c)} · ${Math.ceil(c.hp)}/${c.maxhp} HP</small>${flags?`<br><small>${flags}</small>`:''}<div class="bar2"><i style="width:${Math.round(c.hp/c.maxhp*100)}%"></i></div>`));
+        it.appendChild(el('button','chip2','›'));it.onclick=()=>openTab('animal',c.id);box.appendChild(it);});
       body.appendChild(box);});
-    if(!S.creatures.length)body.appendChild(el('div','muted','No animals. Hatch some eggs.'));
+    if(!S.creatures.length)body.appendChild(el('div','muted','No animals yet. Eggs hatch at the hatchery (below).'));
+    // species summary: one line each, with the grow button where research allows it
+    body.appendChild(el('h4','','SPECIES'));
+    Object.entries(bySp).forEach(([sp,list])=>{const s=SPECIES[sp];const to=growTo(sp);const box=el('div','job'+(tabArg===sp?' focus':''));
+      box.appendChild(el('div','t',`<b>${aico(sp,28)} ${s.name} ×${list.length}</b><span class="muted">${ico('str',1)} ${s.power} · eats ${foodIco(s.food)}</span>`));
+      box.appendChild(el('small','',`<b>${ico('ab_'+s.ab)}${ABN[s.ab]||''}</b> ${s.abd}`));
+      if(to){if(hasR(SPR[to])){const uc=growCost(to);const b=btn(`▲ Grow one into ${SPECIES[to].name}`,`${costStr(uc)} · pick which one on its card`,()=>upgradeSpecies(sp),'sm');b.disabled=!canPay(uc);box.appendChild(b);}else box.appendChild(el('small','muted',`research ${RESEARCH.find(r=>r.id===SPR[to]).name} to grow into a ${SPECIES[to].name}`));}
+      body.appendChild(box);});
     const ws=builtOf('workshop')[0];
     if(ws||S.res.hide>0||S.res.bone>0){body.appendChild(el('h4','','WORKSHOP'));
       if(!ws)body.appendChild(el('div','muted',`You have ${EM.hide}${fl(S.res.hide)} hide and ${EM.bone}${fl(S.res.bone)} bone from the dead. Build a Workshop (from day 6) and add a crafter to turn them into armour and weapons.`));
-      else{const n=inJob('crafter').length;body.appendChild(el('div','muted',`${n}/${jobCap('crafter')} crafters. ${EM.hide}${fl(S.res.hide)} hide, ${EM.bone}${fl(S.res.bone)} bone. Gear goes into the store below; equip it on an animal above. Dead infected drop more.`));
+      else{const n=inJob('crafter').length;body.appendChild(el('div','muted',`${n}/${jobCap('crafter')} crafters. ${EM.hide}${fl(S.res.hide)} hide, ${EM.bone}${fl(S.res.bone)} bone. Gear goes into the store below; equip it from an animal's card. Dead infected drop more.`));
         if(!n)body.appendChild(el('div','bad','No crafter: drag someone onto Crafter in the People tab.'));
         if(S.craft.length)body.appendChild(el('div','',`<b>Working on:</b> ${S.craft.map(j=>`${GEAR[j.id].n} ${Math.round(j.done/j.work*100)}%`).join(', ')}`));
         const store=Object.entries(S.gear).filter(([k,v])=>v>0);if(store.length)body.appendChild(el('div','',`<b>In store:</b> ${store.map(([k,v])=>`${ico(GEAR[k].slot,1)} ${GEAR[k].n} ×${v}`).join(', ')}`));
         Object.entries(GEAR).forEach(([id,g])=>{const locked=g.req&&!hasR(g.req);const card=el('div','card');
           card.appendChild(el('div','t',`<b>${ico(g.slot,1)} ${g.n}</b><span>${costStr(g.cost)} · ${g.work} work</span>`));card.appendChild(el('small','',g.d));
           const b=btn(locked?'Needs '+RESEARCH.find(r=>r.id===g.req).name:'Craft','',()=>{if(!canPay(g.cost))return;pay(g.cost);S.craft.push({id,work:g.work,done:0});log(`Workshop: started ${g.n}.`,'d');sfx('click');save();render();},'sm');b.disabled=locked||!canPay(g.cost);card.appendChild(b);body.appendChild(card);});}}
-    body.appendChild(el('h4','','BREEDING'));
-    const h=hatch();const need=eggNeed();const layEvery=penLvl()>=3?3:4;const nextLay=isBreeding()?((layEvery-(S.day%layEvery))%layEvery||layEvery):null;
-    const pairs=Object.entries(bySp).filter(([sp,l])=>l.filter(c=>c.post==='pen').length>=2);
+    // breeding and the hatchery, as a story: pairs lay, keepers hatch, hatchlings go to the pen
+    body.appendChild(el('h4','','BREEDING AND THE HATCHERY'));
+    const h=hatch();const need=eggNeed();const layEvery=penLvl()>=3?3:4;const keepers=inJob('keeper');
+    const pairs=Object.entries(bySp).map(([sp,l])=>[sp,l.filter(c=>c.post==='pen')]).filter(([sp,l])=>l.length>=2);
     const card=el('div','card');
-    card.appendChild(el('div','',`<b>1. Pairs in the pen</b> ${pairs.length?pairs.map(([sp])=>`${icon(sp)}${S.breed[sp]===false?'<small class="muted">(hold)</small>':''}`).join(' '):'<span class="muted">none: keep 2 of a species in the pen</span>'}`));
-    if(penFull())card.appendChild(el('div','bad',`${ico('alert',1)} The pen is full (${penned()}/${penCap()}). No eggs are laid or hatched until there is room: post an animal to a wall, or upgrade the pen.`));
-    card.appendChild(el('div','muted',isBreeding()?`Next egg in ${nextLay} day${nextLay>1?'s':''} (one per pair, if there is pen room${penLvl()>=3?', every 3 days with a level 3 pen':''}).`:`No breeding in ${season().n.toLowerCase()}. It resumes in spring.`));
-    if(pairs.length){const r=el('div','row');pairs.forEach(([sp])=>{const hold=S.breed[sp]===false;const b=el('button','chip2'+(hold?'':' sel'),`${icon(sp)} ${hold?'hold':'breeding'}`);b.title='Toggle whether this species lays eggs';b.onclick=()=>toggleBreed(sp);r.appendChild(b);});card.appendChild(r);}
-    card.appendChild(el('div','',`<b>2. Eggs at the hatchery</b> <span class="muted">${S.eggs.length} waiting · ${inJob('keeper').length} keeper${inJob('keeper').length===1?'':'s'}${(h&&LV(h).auto)||hasR('incubators')?' + incubator':''} · an egg needs ${need} keeper-day${need===1?'':'s'}</span>`));
+    card.appendChild(el('div','',`<b>1. Pairs in the pen lay eggs.</b> <small class="muted">Two of one species resting in the pen = one egg every ${layEvery} days (${penLvl()>=3?'level 3 pen':'every 3 with a level 3 pen'}), in spring and summer only, if the pen has room.</small>`));
+    if(!pairs.length)card.appendChild(el('div','muted',`No pairs right now${S.creatures.length?': put two of the same species in the pen (tap an animal → Pen)':''}.`));
+    pairs.forEach(([sp,l])=>{const hold=S.breed[sp]===false;const r=el('div','row');r.appendChild(el('span','',`${aico(sp,24)} <b>${l.map(c=>c.name||SPECIES[sp].name).join(' + ')}</b> <small class="muted">${hold?'on hold':isBreeding()?`egg in ${nextLayIn()}d`:'waiting for spring'}</small>`));
+      const b=el('button','chip2'+(hold?'':' sel'),hold?'▶ resume':'❚❚ hold');b.title='Toggle whether this pair lays eggs';b.onclick=()=>toggleBreed(sp);r.appendChild(b);card.appendChild(r);});
+    if(penFull())card.appendChild(el('div','bad',`${ico('alert',1)} The pen is full (${penned()}/${penCap()}): no eggs are laid or hatched until there is room. Post an animal to a wall or patrol, or upgrade the pen.`));
+    card.appendChild(el('div','',`<b>2. Keepers at the hatchery hatch them.</b> <small class="muted">${h?`Each keeper adds 1 keeper-day to an egg per night (2 if clever); an egg hatches at ${need}. ${keepers.length?`${keepers.map(p=>p.name).join(', ')} ${keepers.length>1?'are':'is'} keeping${(LV(h).auto||hasR('incubators'))?', plus the incubator':''}.`:`<span class="bad">No keeper: nothing hatches.</span> Drag someone onto Keeper in the People tab.`}`:'<span class="bad">No hatchery built.</span>'}</small>`));
     const eggOrder=[];S.eggs.forEach(e=>{if(!eggOrder.includes(e.sp))eggOrder.push(e.sp);});
+    if(!S.eggs.length)card.appendChild(el('div','muted','No eggs waiting. Eggs come from pairs in the pen, traders and passing survivors.'));
     eggOrder.forEach((sp,i)=>{const list=S.eggs.filter(e=>e.sp===sp);const best=Math.max(...list.map(e=>e.p));const it=el('div','item');it.appendChild(el('div','em',icon('egg')));
-      it.appendChild(el('div','n',`${i===0?'<span class="good">▶ </span>':''}${list.length}× ${icon(sp)} ${SPECIES[sp].name}<small>${Math.min(best,need)}/${need} keeper-days</small><div class="bar2"><i style="width:${Math.min(100,best/need*100)}%"></i></div>`));
+      it.appendChild(el('div','n',`${i===0?'<span class="good">▶ </span>':''}${list.length}× ${aico(sp,24)} ${SPECIES[sp].name}<small>${Math.min(best,need)}/${need} keeper-days${i===0&&keepers.length&&best<need?` · ready in about ${Math.ceil((need-best)/Math.max(1,keepers.length))} night${Math.ceil((need-best)/Math.max(1,keepers.length))>1?'s':''}`:''}</small><div class="bar2"><i style="width:${Math.min(100,best/need*100)}%"></i></div>`));
       const b=btn('FIRST','hatch these next',()=>hatchFirst(sp),'sm');b.disabled=i===0;b.title='Move these eggs to the front of the line';it.appendChild(b);card.appendChild(it);});
-    card.appendChild(el('div','muted','3. Hatchlings go to the pen as the same species. Research upgrades turn an animal into its stronger form.'));
+    card.appendChild(el('div','',`<b>3. Hatchlings go to the pen.</b> <small class="muted">Same species as the egg. To get the stronger forms, research them at the lab and use Grow on an animal's card.</small>`));
     body.appendChild(card);
     body.appendChild(el('h4','','THE INFECTED'));
     body.appendChild(el('div','muted',Object.entries(ENEMY).map(([k,e])=>`${icon(k)} ${e.name} (day ${e.min}+): ${e.desc}`).join('<br>')));
@@ -1876,6 +1953,7 @@ function showSettings(){
   row('Battle camera','eases in toward the attacked wall during a horde',tog(CFG.zoom,v=>CFG.zoom=v));
   row('World effects','swaying trees, ground detail, night light, weather on the map (off = faster)',tog(CFG.fx,v=>CFG.fx=v));
   row('Tutorial','step-by-step guide on the map; on by default in Easy',tog(S?S.tut.on:CFG.tutorial!==false,v=>{if(S){S.tut.on=v;if(v)S.tut.step=Math.min(S.tut.step,TUTORIAL.length-1);}CFG.tutorial=v;renderTut();}));
+  row('First-time tips','a card the first time something new happens (hunger, eggs, a breach, loot...), in every mode',tog(CFG.tips!==false,v=>CFG.tips=v));
   row('Pause when a building finishes','off: a quiet note on the map instead',tog(CFG.finishAlerts,v=>CFG.finishAlerts=v));
   const sel2=el('div','row');[['auto','auto'],['daily','daily'],['weekly','weekly'],['off','bad nights only']].forEach(([v,l])=>{const b=el('button','chip2'+(CFG.summary===v?' sel':''),l);b.onclick=()=>{CFG.summary=v;save();showSettings();};sel2.appendChild(b);});
   row('Night summary card','auto: nightly for 15 days, then weekly',sel2);
@@ -1892,7 +1970,9 @@ function renderModal(){
   if(a.choices){const r=el('div','row');a.choices.forEach((c,i)=>{const b=btn(c.label,c.sub||'',()=>{ac();choose(a,i);},i===0?'go':'');if(c.ok===false)b.disabled=true;r.appendChild(b);});box.appendChild(r);m.appendChild(box);return;}
   const r=el('div','row');r.appendChild(btn(S.alerts.length>1?`Next (${S.alerts.length-1} more)`:'Resume ▶','',()=>{ac();S.alerts.shift();if(!S.alerts.length&&!S.over)setSpeed(1);save();render();},'go'));
   if(S.alerts.length>1)r.appendChild(btn('Dismiss all','',()=>{ac();S.alerts=[];if(!S.over)setSpeed(1);save();render();}));
-  if(S.battle||a.title==='Herd sighted')r.appendChild(btn('Go to Walls panel','',()=>{ac();S.alerts.shift();openTab('walls');save();render();}));
+  if(a.go)r.appendChild(btn(a.go[0],'',()=>{ac();S.alerts.shift();openTab(a.go[1]);if(!S.alerts.length&&!S.over)setSpeed(1);save();render();}));
+  else if(S.battle||a.title==='Herd sighted')r.appendChild(btn('Go to Walls panel','',()=>{ac();S.alerts.shift();openTab('walls');save();render();}));
+  if(a.tip)r.appendChild(btn('Stop these tips','settings has the switch',()=>{ac();CFG.tips=false;S.alerts=S.alerts.filter(x=>!x.tip);if(!S.alerts.length&&!S.over)setSpeed(1);save();render();},'sm'));
   box.appendChild(r);m.appendChild(box);
 }
 function render(){if(S&&S.tut)renderTut();
