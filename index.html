@@ -1175,17 +1175,39 @@ function nearestFoodBuilding(x,y){const list=Object.values(S.tiles).filter(t=>t.
 function puff(x,y,col,n=6,spd=40){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,s=spd*(0.4+Math.random());particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-20,t:0,life:0.4+Math.random()*0.3,col});}}
 function floater(x,y,text,col){floaters.push({x,y,text,col,t:0});}
 function hitEnemy(e,dmg){e.hp-=dmg;e.flash=0.08;}
+// --- Blows, not a drain -------------------------------------------------------------------------
+// Every melee damage line used to be `hp -= rate * dt`: numbers sliding down smoothly, with no
+// instant of contact anywhere in the fight. Nothing to animate on, nothing to sync a sound to.
+// strike() banks damage at exactly the old rate and pays it out in one lump when the clock fires,
+// so damage-per-second is identical and every balance number still holds - but now a blow LANDS.
+// The seed staggers each attacker's clock so a row of five does not bite in unison.
+const STRIKE_EVERY=0.75;
+function strike(o,key,rate,dt,seed){
+  const bk=key+'B',ck=key+'T';
+  o[bk]=(o[bk]||0)+rate*dt;
+  if(o[ck]==null)o[ck]=STRIKE_EVERY*(0.25+(((seed||0)*7)%10)/13);
+  o[ck]-=dt;
+  if(o[ck]>0)return 0;
+  o[ck]=STRIKE_EVERY;   // a very large dt (speed 4) costs a visual blow, never banked damage
+  const d=o[bk];o[bk]=0;return d;
+}
+// How long a body takes to fall. death_frames() has been in the atlas for every animal since the
+// sprites were built - six frames that rotate it about its feet, lie it flat and sink it - and
+// enemies never played them: kill() jumped straight to a static corpse.
+const DEATH_TIME=0.55;
 // A pack hunter counts the friends still standing: +25% bite each, capped at double. Kill them and
 // the survivors get weaker, so thinning a pack pays off twice.
 function packMul(e){if(!ENEMY[e.type].pack||!S.battle)return 1;
   const n=S.battle.enemies.filter(o=>o!==e&&!o.dead&&!o.playing&&o.type===e.type).length;
   return Math.min(2,1+0.25*n);}
-function kill(e,by){if(e.dead)return;
+function kill(e,by){if(e.dead||e.dying>0)return;
   // An opossum's first death is an act: it drops, lies still long enough for your animals to pick a
   // new target, then gets up with a third of its health. The second one is real.
   if(ENEMY[e.type].playdead&&!e.feigned){e.feigned=true;e.playing=3.5;e.hp=Math.max(1,Math.round(ENEMY[e.type].hp/3));
     puff(e.x,e.y,'#cbb9a0',5,24);floater(e.x,e.y-20,'plays dead','#cbb9a0');return;}
-  e.dead=true;const B=S.battle;B.killed++;S.stats.kills++;puff(e.x,e.y,'#ff3b3b',4,30);sfx('die');corpse(e.skin||e.type,e.x,e.y,e.face);
+  // The loot, the count and the feed line all fire on the KILLING BLOW, not when the body lands,
+  // or the ticker reads a beat late. Only the corpse waits for the fall (see the dying tick).
+  e.dying=DEATH_TIME;e.hp=0;const B=S.battle;B.killed++;S.stats.kills++;puff(e.x,e.y,'#ff3b3b',4,30);sfx('die');
   const big=ENEMY[e.type].cost>=4;if(Math.random()<(big?0.9:0.45)){B.loot.hide++;}if(Math.random()<(big?0.7:0.35)){B.loot.bone++;}
   if(by){const first=B.killed===1;const heavy=ENEMY[e.type].cost>=7;
     ticker(`${by} killed a ${ENEMY[e.type].name.toLowerCase()}${first?' \u2014 first blood':''}`,heavy?2:first?1:0);}}
@@ -1198,6 +1220,7 @@ function updateBattle(dt){
   const guardAnimals=S.creatures.filter(c=>c.post==='guard');const patrolAnimals=patrols();
   B.enemies.forEach((e,idx)=>{const E=ENEMY[e.type];const w=S.walls[e.dir];e.t+=dt*60;
     // lying there as a corpse: no moving, no biting, and nothing will target it until it gets up
+    if(e.dying>0){e.dying-=dt;if(e.dying<=0){e.dead=true;corpse(e.skin||e.type,e.x,e.y,e.face);}return;}
     if(e.playing>0){e.playing-=dt;if(e.playing<=0){e.playing=0;puff(e.x,e.y,'#cbb9a0',6,30);floater(e.x,e.y-20,'gets up!','#ffd479');ticker(`A ${E.name.toLowerCase()} was playing dead and got back up`);}return;}
     const EDMG=E.dmg*packMul(e);
     if(e.leapT>0)e.leapT-=dt;
@@ -1229,27 +1252,45 @@ function updateBattle(dt){
     if(E.wreck&&e.atWall&&canAct){e.slamT=(e.slamT==null?3:e.slamT)+dt;if(e.slamT>4.5){e.slamT=0;const burst=w.lvl===1?8:5;w.hp-=burst;B.wallDmg[e.dir]=(B.wallDmg[e.dir]||0)+burst;shake=Math.max(shake,10);puff(e.x,e.y,'#9c6b3c',14,70);sfx('crack');ticker(`The bear slammed the ${DIRS[e.dir].toLowerCase()} wall`);}}
     if(E.ram&&!e.inside&&!e.charged&&w.lvl&&!w.broken){if(d<150&&d>6)e.charging=true;if(e.atWall||d<=6){e.charged=true;e.charging=false;const burst=(w.lvl===1?6:3);w.hp-=burst;B.wallDmg[e.dir]=(B.wallDmg[e.dir]||0)+burst;shake=Math.max(shake,8);puff(e.x,e.y,'#9c6b3c',10,60);sfx('crack');ticker(`A boar slammed the ${DIRS[e.dir].toLowerCase()} wall`);
       const near=guardAnimals.filter(c=>c.front===e.dir&&anim[c.id]).sort((u,v)=>Math.hypot(anim[u.id].x-e.x,anim[u.id].y-e.y)-Math.hypot(anim[v.id].x-e.x,anim[v.id].y-e.y))[0];if(near){const a=anim[near.id];const kx=e.dir==='E'?-26:e.dir==='W'?26:0,ky=e.dir==='N'?26:e.dir==='S'?-26:0;a.x+=kx;a.y+=ky;near.stun=1.4;floater(a.x,a.y-26,'knocked back','#f0b64a');}}}
-    if(target&&canAct){const ts=SPECIES[target.sp];target.hp-=EDMG*dt*(ts.ab==='tank'?0.5:1);e.face=anim[target.id].x>e.x?1:-1;e.hit=(e.hit||0)+dt;if(Math.random()<dt*3)sfx('bite');
-      if(ts.ab==='snap'){hitEnemy(e,1*dt);if(e.hp<=0)kill(e,cname(target));}
+    if(target&&canAct){const ts=SPECIES[target.sp];
+      const blow=strike(e,'bite',EDMG*(ts.ab==='tank'?0.5:1),dt,e.id);
+      e.face=anim[target.id].x>e.x?1:-1;e.hit=(e.hit||0)+dt;
+      if(blow>0){target.hp-=blow;sfx('bite');const ta=anim[target.id];
+        if(ta){puff(ta.x,ta.y-6,'#ff6b5c',3,26);const fd=Math.hypot(ta.x-e.x,ta.y-e.y)||1;ta.flinch=0.16;ta.fx=(ta.x-e.x)/fd;ta.fy=(ta.y-e.y)/fd;}
+        if(ts.ab==='snap'){hitEnemy(e,1*STRIKE_EVERY);if(e.hp<=0)kill(e,cname(target));}}
       if(ts.ab==='toxic'){e.dot=Math.max(e.dot,1);e.dotT=Math.max(e.dotT,4);}}
-    else if(e.atWall){if(canAct){const mult=(E.ram&&w.lvl===1?3:1)*(E.lean?1.4:1)*WALL_FACTOR;w.hp-=EDMG*mult*dt;B.wallDmg[e.dir]=(B.wallDmg[e.dir]||0)+EDMG*mult*dt;e.hit=(e.hit||0)+dt;if(Math.random()<dt*1.5){sfx('crack');shake=Math.max(shake,E.ram?3:1.2);puff(e.x,e.y,'#9c6b3c',2,20);}
-      if(hasR('spikes')){hitEnemy(e,0.4*dt);if(e.hp<=0){kill(e);}}
+    else if(e.atWall){if(canAct){const mult=(E.ram&&w.lvl===1?3:1)*(E.lean?1.4:1)*WALL_FACTOR;
+      const blow=strike(e,'chew',EDMG*mult,dt,e.id);e.hit=(e.hit||0)+dt;
+      if(blow>0){w.hp-=blow;B.wallDmg[e.dir]=(B.wallDmg[e.dir]||0)+blow;
+        sfx('crack');shake=Math.max(shake,E.ram?3:1.2);puff(e.x,e.y,'#9c6b3c',4,26);
+        if(hasR('spikes')){hitEnemy(e,0.4*STRIKE_EVERY);if(e.hp<=0){kill(e);}}}
       if(w.hp<=0){w.hp=0;w.broken=true;S.gates[e.dir]=false;log(`A gap opened in the ${DIRS[e.dir].toLowerCase()} wall.`,'e');tip('gap',e.dir);ticker(`The ${DIRS[e.dir].toLowerCase()} wall broke: hold the gap`,2);shake=10;puff(e.x,e.y,'#9c6b3c',16,80);sfx('crack');}}}
     else if(E.sneak&&e.inside&&d<20){const fb=nearestFoodBuilding(e.x,e.y);if(fb){const f=FOODBLD[fb.type];const take=Math.min(S.res[f],0.6*dt);S.res[f]-=take;B.stolen[f]=(B.stolen[f]||0)+take;e.stole+=take;if(e.stole>=1){e.stole=0;e.bag=(e.bag||0)+1;floater(e.x,e.y-20,`-1 ${RESN[f].toLowerCase()}`,'#f0b64a');if(e.bag>=3){e.dead=true;B.fled=(B.fled||0)+1;floater(e.x,e.y-30,'got away','#93a386');}}}
       else if(S.eggs.length&&Math.random()<dt*0.3){S.eggs.pop();floater(e.x,e.y-20,'-1 egg','#f0b64a');}}
     else if(d>2&&canAct){const sp=E.speed*(S.battle.kind==='prowl'?0.7:1)*(hasR('caltrops')&&!e.inside&&nearWall(e)?0.6:1)*(e.charging?2.3:1)*(e.blind>0?0.2:1)*(isWinter()?0.8:1)*(W()==='rain'||W()==='snow'?0.8:1);e.x+=dx/d*sp*dt;e.y+=dy/d*sp*dt;e.face=dx>0?1:-1;}
     if(e.inside&&!E.sneak&&Math.hypot(e.x-hp0.x,e.y-hp0.y)<30){e.dead=true;breach(e);}
-    if(e.inside&&!E.sneak&&canAct){guardsP.forEach(p=>{const a=anim[p.id];if(!a||p.wounded)return;if(Math.hypot(a.x-e.x,a.y-e.y)<30){p.hp-=EDMG*dt;if(p.hp<=0){p.wounded=3;p.hp=0;B.wounded.push(p.name);log(`${p.name} was mauled at the guard post and is out for days.`,'e');sfx('hurt');floater(a.x,a.y-24,'wounded','#ff6b5c');}}});}
+    if(e.inside&&!E.sneak&&canAct){const maul=strike(e,'maul',EDMG,dt,e.id);
+      if(maul>0)guardsP.forEach(p=>{const a=anim[p.id];if(!a||p.wounded)return;if(Math.hypot(a.x-e.x,a.y-e.y)<30){p.hp-=maul;sfx('bite');puff(a.x,a.y-8,'#ff6b5c',3,26);{const fd=Math.hypot(a.x-e.x,a.y-e.y)||1;a.flinch=0.16;a.fx=(a.x-e.x)/fd;a.fy=(a.y-e.y)/fd;}if(p.hp<=0){p.wounded=3;p.hp=0;B.wounded.push(p.name);log(`${p.name} was mauled at the guard post and is out for days.`,'e');sfx('hurt');floater(a.x,a.y-24,'wounded','#ff6b5c');}}});}
   });
   if(!S.battle)return;
-  guardAnimals.concat(patrolAnimals).forEach(c=>{const a=anim[c.id];if(!a)return;const s=SPECIES[c.sp];c.cd=Math.max(0,(c.cd||0)-dt);if(c.stun>0){c.stun-=dt;return;}
+  guardAnimals.concat(patrolAnimals).forEach(c=>{const a=anim[c.id];if(!a)return;const s=SPECIES[c.sp];c.cd=Math.max(0,(c.cd||0)-dt);if(a.bite>0)a.bite=Math.max(0,a.bite-dt);if(c.stun>0){c.stun-=dt;return;}
     const reach=s.ab==='dive'?4*T:(s.ab==='blind'||s.ab==='poison2')?2*T:40;
-    const cands=c.post==='patrol'?B.enemies.filter(e=>!e.dead&&!e.playing&&e.inside&&Math.hypot(a.x-e.x,a.y-e.y)<44):B.enemies.filter(e=>!e.dead&&!e.playing&&((e.atWall&&e.dir===c.front)||Math.hypot(a.x-e.x,a.y-e.y)<reach));
+    const cands=c.post==='patrol'?B.enemies.filter(e=>!e.dead&&!e.playing&&!e.dying&&e.inside&&Math.hypot(a.x-e.x,a.y-e.y)<44):B.enemies.filter(e=>!e.dead&&!e.playing&&!e.dying&&((e.atWall&&e.dir===c.front)||Math.hypot(a.x-e.x,a.y-e.y)<reach));
     if(!cands.length)return;
     const target=s.ab==='dive'?cands.sort((u,v)=>u.hp-v.hp)[0]:cands.sort((u,v)=>Math.hypot(a.x-u.x,a.y-u.y)-Math.hypot(a.x-v.x,a.y-v.y))[0];
     let rate=cpower(c)*((s.ab==='quick'||s.ab==='spur')?1.5:1)*coldFactor(c)*(hasPerk('sharpteeth')?1.2:1);
     if(s.ab==='trample'&&c.cd<=0&&ENEMY[target.type].cost<=3){c.cd=3;const ang=Math.atan2(target.y-a.y,target.x-a.x);target.x+=Math.cos(ang)*26;target.y+=Math.sin(ang)*26;target.heldT=1;floater(target.x,target.y-22,'trampled','#f0b64a');puff(target.x,target.y,'#c9b58a',6,40);}
-    if(s.ab==='kick'&&c.cd<=0){c.cd=4;hitEnemy(target,cpower(c)*3);target.heldT=1;floater(target.x,target.y-22,'KICK','#ff6b5c');shake=Math.max(shake,3);sfx('crack');if(target.hp<=0)kill(target,cname(c));}if(s.ab==='crush'&&Math.random()<dt*0.5){rate*=3;floater(target.x,target.y-22,'CRUNCH','#ff6b5c');shake=Math.max(shake,2);}hitEnemy(target,rate*dt);a.bite=(a.bite||0)+dt;a.face=target.x>a.x?1:-1;if(Math.random()<dt*2)sfx('bite');
+    if(s.ab==='kick'&&c.cd<=0){c.cd=4;hitEnemy(target,cpower(c)*3);target.heldT=1;floater(target.x,target.y-22,'KICK','#ff6b5c');shake=Math.max(shake,3);sfx('crack');if(target.hp<=0)kill(target,cname(c));}    // Crush banks its extra straight into the blow it belongs to, which is exactly the damage the
+    // old per-frame triple added - same expected DPS, but the CRUNCH now lands with a hit.
+    if(s.ab==='crush'&&Math.random()<dt*0.5){c.biteB=(c.biteB||0)+rate*dt*2;c.crunch=true;}
+    const blow=strike(c,'bite',rate,dt,c.id);
+    a.face=target.x>a.x?1:-1;
+    if(blow>0){hitEnemy(target,blow);sfx('bite');
+      a.bite=0.22;   // the lunge is now driven by the blow instead of running free
+      {const fd=Math.hypot(target.x-a.x,target.y-a.y)||1;target.flinch=0.16;target.fx=(target.x-a.x)/fd;target.fy=(target.y-a.y)/fd;}
+      puff(target.x,target.y-6,'#ffd479',3,28);
+      if(c.crunch){c.crunch=false;floater(target.x,target.y-22,'CRUNCH','#ff6b5c');shake=Math.max(shake,2);}}
+
     if(s.ab==='dive'&&Math.random()<dt*2)particles.push({x:a.x,y:a.y,vx:(target.x-a.x)*3,vy:(target.y-a.y)*3,t:0,life:0.3,col:'#f0b64a'});
     if(s.ab==='poison'||s.ab==='poison2'||s.ab==='toxic'){target.dot=Math.max(target.dot,s.ab==='poison'?0.5:s.ab==='toxic'?1:1.5);target.dotT=4;if(s.ab==='poison2'&&Math.random()<dt*2)particles.push({x:a.x,y:a.y,vx:(target.x-a.x)*4,vy:(target.y-a.y)*4,t:0,life:0.25,col:'#5bc0ff'});}
     if(s.ab==='bleed'){target.dot=Math.max(target.dot,1.5);target.dotT=Math.max(target.dotT,4);}
@@ -1258,11 +1299,11 @@ function updateBattle(dt){
     if(target.hp<=0){c.kills=(c.kills||0)+1;kill(target,cname(c));
       if(hasR('veterans')&&(c.kills===8||c.kills===20)){ticker(`${cname(c)} is blooded: +${c.kills===20?2:1} power, here and now`,2);
         floater(anim[c.id]?anim[c.id].x:0,(anim[c.id]?anim[c.id].y:0)-30,'BLOODED','#ffd479');sfx('done');}}});
-  if(hasR('ballista'))B.dirs.forEach(d=>{if(!S.towers[d])return;const tp=towerPos(d);let best=null,bd=GUARD_TOWER_RANGE+T;B.enemies.forEach(e=>{if(e.dead||e.playing||e.inside)return;const dd=Math.hypot(e.x-tp.x,e.y-tp.y);if(dd<bd){bd=dd;best=e;}});if(best){hitEnemy(best,1.2*dt);if(Math.random()<dt*0.8)particles.push({x:tp.x,y:tp.y-10,vx:(best.x-tp.x)*2.5,vy:(best.y-tp.y+10)*2.5,t:0,life:0.4,col:'#e9f0dc',g:0,s:2});if(best.hp<=0)kill(best,'the ballista');}});
+  if(hasR('ballista'))B.dirs.forEach(d=>{if(!S.towers[d])return;const tp=towerPos(d);let best=null,bd=GUARD_TOWER_RANGE+T;B.enemies.forEach(e=>{if(e.dead||e.playing||e.dying||e.inside)return;const dd=Math.hypot(e.x-tp.x,e.y-tp.y);if(dd<bd){bd=dd;best=e;}});if(best){hitEnemy(best,1.2*dt);if(Math.random()<dt*0.8)particles.push({x:tp.x,y:tp.y-10,vx:(best.x-tp.x)*2.5,vy:(best.y-tp.y+10)*2.5,t:0,life:0.4,col:'#e9f0dc',g:0,s:2});if(best.hp<=0)kill(best,'the ballista');}});
   // guards shoot what they can reach: 2.5 tiles from where they stand, or 4 tiles from a watchtower at the front
   // being attacked (they fire from it), where a shot also hits half again as hard
   const ARMS=armMap(),CREW=towerCrew();
-  guardsP.forEach(p=>{const live=B.enemies.filter(e=>!e.dead&&!e.playing);if(!live.length)return;const a=anim[p.id];if(!a)return;
+  guardsP.forEach(p=>{const live=B.enemies.filter(e=>!e.dead&&!e.playing&&!e.dying);if(!live.length)return;const a=anim[p.id];if(!a)return;
     const arm=ARMS[p.id]?GEAR[ARMS[p.id]]:null;const aPow=arm?arm.power:0,aReach=arm?arm.reach:0;a.arm=ARMS[p.id]||null;
     // what counts as "at the wall": inside the base, or within reach of the wall line of its own front (further with a tower there)
     const wallDist=e=>{const [x,y,ww,hh]=wallRect(e.dir);const cx=Math.max(x,Math.min(x+ww,e.x)),cy=Math.max(y,Math.min(y+hh,e.y));return Math.hypot(e.x-cx,e.y-cy);};
@@ -1492,10 +1533,10 @@ function creatureTarget(c){
   if(drag&&drag.moved&&drag.creature===c)return {x:drag.pos.x,y:drag.pos.y};
   if(c.post==='guard'){const list=guardsOf(c.front);const i=list.indexOf(c);const B=S.battle;
     if(B&&S.walls[c.front].broken){const g=gapPoint(c.front);const o=slotOffset(i);return {x:g.x+o[0]*1.2,y:g.y+o[1]*1.2};}
-    if(B){const a=anim[c.id];const live=B.enemies.filter(e=>e.inside&&!e.playing&&!ENEMY[e.type].sneak);if(live.length&&a&&(!S.walls[c.front].lvl||live.some(e=>ENEMY[e.type].fly))){const t=live.sort((u,v)=>Math.hypot(u.x-a.x,u.y-a.y)-Math.hypot(v.x-a.x,v.y-a.y))[0];return {x:t.x-(t.x>a.x?18:-18),y:t.y};}}
+    if(B){const a=anim[c.id];const live=B.enemies.filter(e=>e.inside&&!e.playing&&!e.dying&&!ENEMY[e.type].sneak);if(live.length&&a&&(!S.walls[c.front].lvl||live.some(e=>ENEMY[e.type].fly))){const t=live.sort((u,v)=>Math.hypot(u.x-a.x,u.y-a.y)-Math.hypot(v.x-a.x,v.y-a.y))[0];return {x:t.x-(t.x>a.x?18:-18),y:t.y};}}
     return wallSpot(c.front,i,list.length);}
   if(c.post==='patrol'){const a=anim[c.id];const B=S.battle;
-    if(B&&a){const live=B.enemies.filter(e=>e.inside&&!e.dead&&!e.playing);if(live.length){const t=live.sort((u,v)=>Math.hypot(u.x-a.x,u.y-a.y)-Math.hypot(v.x-a.x,v.y-a.y))[0];const dd=Math.max(1,Math.hypot(a.x-t.x,a.y-t.y));if(dd<18)return {x:a.x,y:a.y};return {x:t.x+(a.x-t.x)/dd*14,y:t.y+(a.y-t.y)/dd*14};}}
+    if(B&&a){const live=B.enemies.filter(e=>e.inside&&!e.dead&&!e.playing&&!e.dying);if(live.length){const t=live.sort((u,v)=>Math.hypot(u.x-a.x,u.y-a.y)-Math.hypot(v.x-a.x,v.y-a.y))[0];const dd=Math.max(1,Math.hypot(a.x-t.x,a.y-t.y));if(dd<18)return {x:a.x,y:a.y};return {x:t.x+(a.x-t.x)/dd*14,y:t.y+(a.y-t.y)/dd*14};}}
     // a slow loop just inside the walls, each patroller spaced along it. The animal keeps its own
     // place on the loop (a.pd) and walks toward a point a few steps ahead of it, so it never catches
     // its target and flickers between standing and walking.
@@ -1561,7 +1602,8 @@ function hpBar(x,y,hp,max,w=22){if(hp>=max-0.01)return;ctx.fillStyle='#0f1410';c
 function drawPerson(a,p,work){
   // a guard who has reached his tower is lifted onto the platform and loses his ground shadow
   const up=a.onTower&&!a.moving?22:0;
-  const x=Math.round(a.x),y=Math.round(a.y)-up;const run=S.speed>0;
+  if(a.flinch>0)a.flinch-=dtReal;const pfl=a.flinch>0?(a.flinch/0.16)*3:0;
+  const x=Math.round(a.x+pfl*(a.fx||0)),y=Math.round(a.y+pfl*(a.fy||0))-up;const run=S.speed>0;
   if(!up){ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(x-8,y+12,16,3);}
   const child=p.age<ADULT_DAYS;const job=child?'child':p.wounded?'wounded':(JOBS[p.job]?p.job:'builder');
   let frame=0;
@@ -1737,26 +1779,36 @@ function draw(ts){
     if(c.post==='guard'&&!a.moving&&!dragging){if(c.front==='E')a.face=1;else if(c.front==='W')a.face=-1;}   // posted and standing: look out over the wall
     if(dragging)row='scared';else if(a.moving)row=Math.abs(a.dy)>Math.abs(a.dx)*1.4?(a.dy>0?'down':'up'):'walk';else if(a.bite)row='angry';else if(c.post==='guard'&&(c.front==='N'||c.front==='S'))row=c.front==='N'?'up':'down';
     else if(c.hunger>0&&Math.floor(a.t/150)%2===0)row='scared';else if(c.post==='pen'&&night)row='sleep';else if(c.post==='pen'&&S.hour<=1)row='graze';
-    const frame=running?Math.floor(a.t/(60/AFPS[row]))+c.id:0;const lunge=a.bite&&running?Math.sin(tickA/3)*4*a.face:0;a.bite=0;
+    const frame=running?Math.floor(a.t/(60/AFPS[row]))+c.id:0;
+    // Was a free-running sine wiggle with nothing behind it. Now a.bite is set to 0.22s at the
+    // instant a blow lands and decays, so the sprite snaps forward on contact and pulls back.
+    const lunge=running&&a.bite>0?Math.pow(a.bite/0.22,1.4)*8*a.face:0;
+    if(a.flinch>0)a.flinch-=dtReal;const cfl=a.flinch>0?(a.flinch/0.16)*3:0;
     const flip=row!=='down'&&row!=='up'&&a.face>0;
-    DQ.push({y:a.y+26+(dragging?400:0),fn:()=>{if(!aspr(c.sp,row,frame,a.x+lunge,a.y+8-(dragging?10:0),flip,1.5*(SPECIES[c.sp].scale||1),1,SPECIES[c.sp].wide||1)){ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(Math.round(a.x)-10,Math.round(a.y)+8,20,3);spr(c.sp,a.x+lunge,a.y-(dragging?8:0),2,frame%2,a.face<0);}
+    DQ.push({y:a.y+26+(dragging?400:0),fn:()=>{if(!aspr(c.sp,row,frame,a.x+lunge+cfl*(a.fx||0),a.y+8-(dragging?10:0)+cfl*(a.fy||0),flip,1.5*(SPECIES[c.sp].scale||1),1,SPECIES[c.sp].wide||1)){ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(Math.round(a.x)-10,Math.round(a.y)+8,20,3);spr(c.sp,a.x+lunge,a.y-(dragging?8:0),2,frame%2,a.face<0);}
     if(c.post==='guard'&&coldFactor(c)<1){ctx.fillStyle='#7ad0e0';ctx.font='10px monospace';ctx.textAlign='center';ctx.fillText('❄',Math.round(a.x)+14,Math.round(a.y)-18);}
     if(c.hunger>0&&!dragging){const bx=Math.round(a.x)+16,by=Math.round(a.y)-34+Math.round(Math.sin(a.t/20)*1.5);ctx.fillStyle='rgba(250,244,228,.95)';ctx.beginPath();ctx.roundRect(bx-11,by-11,22,22,5);ctx.fill();ctx.beginPath();ctx.moveTo(bx-6,by+10);ctx.lineTo(bx-2,by+15);ctx.lineTo(bx+1,by+10);ctx.fill();const f=SPECIES[c.sp].food;if(f==='rodents'){ctx.save();ctx.translate(bx,by);ctx.scale(0.5,0.5);aspr('mouse','idle',0,0,8,false,1);ctx.restore();}else cico(f,bx,by,16);if(c.hunger>=2){ctx.fillStyle='#d8382a';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText(String(c.hunger),bx+9,by-6);}}
     hpBar(Math.round(a.x),Math.round(a.y)-26,c.hp,c.maxhp);}});
   });
   if(S.battle)S.battle.enemies.forEach(e=>{const E=ENEMY[e.type];const sh=e.hit&&running?Math.sin(tickA)*2:0;const attacking=e.hit>0;e.hit=0;
     const mdx=e.x-(e.px==null?e.x:e.px),mdy=e.y-(e.py==null?e.y:e.py);e.px=e.x;e.py=e.y;const moving=Math.hypot(mdx,mdy)>0.05;
-    let row=E.fly?'walk':'idle';if(e.blind>0)row='scared';else if(attacking||e.atWall)row='angry';else if(moving)row=Math.abs(mdy)>Math.abs(mdx)*1.4?(mdy>0?'down':'up'):'walk';
-    const frame=running?Math.floor(e.t/(60/AFPS[row]))+e.id:0;if(e.flash>0){e.flash-=dtReal;}
+    let row=E.fly?'walk':'idle';if(e.dying>0)row='death';else if(e.blind>0)row='scared';else if(attacking||e.atWall)row='angry';else if(moving)row=Math.abs(mdy)>Math.abs(mdx)*1.4?(mdy>0?'down':'up'):'walk';
+    // a body plays its six death frames ONCE across the fall rather than looping at AFPS
+    const dprog=e.dying>0?1-Math.max(0,e.dying)/DEATH_TIME:0;
+    const frame=e.dying>0?Math.min(5,Math.floor(dprog*6)):(running?Math.floor(e.t/(60/AFPS[row]))+e.id:0);
+    if(e.flash>0){e.flash-=dtReal;}
+    // struck things jolt: a short shove along the blow, set wherever damage lands
+    if(e.flinch>0)e.flinch-=dtReal;
+    const efl=e.flinch>0?(e.flinch/0.16)*3:0, eflx=efl*(e.fx||0), efly=efl*(e.fy||0);
     const flip=row!=='down'&&row!=='up'&&e.face>0;
     DQ.push({y:e.y+8+(E.fly?300:0),fn:()=>{if(ENEMIES.sets[e.type]){const dir=row==='down'?'down':row==='up'?'up':'side';const ea=e.flash>0&&!E.fly?'hit':attacking?'attack':(row==='angry'||moving||E.fly)?'move':'idle';const sc=E.fly?0.8:1.15;const ef=running?Math.floor(e.t/5)+e.id:0;
         if(!E.fly){ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(Math.round(e.x)-8,Math.round(e.y)+6,16,3);}else{ctx.fillStyle='rgba(0,0,0,.18)';ctx.fillRect(Math.round(e.x)-8,Math.round(e.y)+10,16,3);}
         espr(e.type,ea,dir,ef,e.x+sh,e.y+8-(E.fly?16+Math.sin(tickA/6+e.id)*3:0),dir==='side'&&e.face<0,sc,e.flash>0?0.55:1);}
-      else if(!aspr(e.skin||e.type,row,frame,e.x+sh,e.y+8-(E.fly?14:0)-(e.leapT>0?Math.sin(e.leapT/0.7*Math.PI)*34:0),flip,1.5*(E.scale||1),e.flash>0?0.55:1)){ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(Math.round(e.x)-10,Math.round(e.y)+8,20,3);spr(e.type,e.x+sh,e.y-(E.fly?12:0),2,frame%2,e.face<0,e.flash>0?0.5:1);}
+      else if(!aspr(e.skin||e.type,row,frame,e.x+sh+eflx,e.y+8+efly-(E.fly?14:0)-(e.leapT>0?Math.sin(e.leapT/0.7*Math.PI)*34:0),flip,1.5*(E.scale||1),e.flash>0?0.55:1)){ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(Math.round(e.x)-10,Math.round(e.y)+8,20,3);spr(e.type,e.x+sh,e.y-(E.fly?12:0),2,frame%2,e.face<0,e.flash>0?0.5:1);}
     if(e.blind>0){ctx.fillStyle='#8fd45c';ctx.fillRect(Math.round(e.x)-6,Math.round(e.y)-20,12,3);}
     if(e.dotT>0){ctx.fillStyle=e.dot>=1?'#ff3b3b':'#8fd45c';ctx.fillRect(Math.round(e.x)+10,Math.round(e.y)-32,3,3);}
     ctx.fillStyle='#ff3b3b';ctx.globalAlpha=.5+pulse*.5;ctx.fillRect(Math.round(e.x)-1,Math.round(e.y)-32-(E.fly?12:0),3,3);ctx.globalAlpha=1;
-    hpBar(Math.round(e.x),Math.round(e.y)-28-(E.fly?12:0),e.hp,e.maxhp,20);}});});
+    if(!e.dying)hpBar(Math.round(e.x),Math.round(e.y)-28-(E.fly?12:0),e.hp,e.maxhp,20);}});});   // no empty bar over a body
   for(let i=corpses.length-1;i>=0;i--){const q=corpses[i];if(running)q.t+=dtReal;if(q.t>1.9){corpses.splice(i,1);continue;}const f=Math.min(5,Math.floor(q.t/0.3));DQ.push({y:q.y+7,fn:()=>{if(ENEMIES.sets[q.name]){const E=ENEMY[q.name];const fr=ENEMIES.sets[q.name].anims.death.side;espr(q.name,'death','side',Math.min(fr.length-1,Math.floor(q.t/0.22)),q.x,q.y+8,q.face<0,E&&E.fly?0.8:1.15,q.t>1.5?1-(q.t-1.5)/0.4:1);}else aspr(q.name,'death',f,q.x,q.y+8,q.face>0,1.5*((ENEMY[q.name]||ENEMY[q.name.split('_')[0]]||{}).scale||1),q.t>1.5?1-(q.t-1.5)/0.4:1);}});}
   for(const k in WORKED)delete WORKED[k];const inside={};
   S.people.forEach(p=>{const start=tileCenter(K(6,5));const a=ensureAnim(p.id,start.x,start.y);const tg=targetFor(p);
@@ -2343,6 +2395,6 @@ if(savedGame){S=migrate(savedGame);render();showOpening();}
 else{showOpening();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
-window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,coldFactor,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
+window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,coldFactor,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
 })();
 </script>
