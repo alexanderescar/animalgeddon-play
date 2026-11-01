@@ -1332,6 +1332,15 @@ function wallRect(dir){const op=d=>S.open.includes(d);const w=12;
   if(dir==='W')return [x0,y0,w,y1-y0];
   if(dir==='N')return [x0,y0,x1-x0,w];
   return [x0,y1-w,x1-x0,w];}
+// where the gate actually sits on a wall run: the same 0.72 along it that the gate is drawn at,
+// so a scout heading out walks to the doorway instead of straight through the timber.
+const GATE_Q=0.72;
+function gatePoint(dir){const [x,y,ww,hh]=wallRect(dir);
+  return ww>hh?{x:x+ww*GATE_Q,y:y+hh/2}:{x:x+ww/2,y:y+hh*GATE_Q};}
+// a pace outside the doorway, straight out from it: a scout aims here before turning for the trees,
+// so he steps THROUGH the gate square-on instead of cutting the corner across the timber
+function gateOut(dir,d=34){const g=gatePoint(dir);
+  return {x:g.x+(dir==='E'?d:dir==='W'?-d:0),y:g.y+(dir==='S'?d:dir==='N'?-d:0)};}
 // animal spots along a wall: half on each side of the middle, which is the watchtower's
 function wallSpot(dir,i,n){const [x,y,w,h]=wallRect(dir);const L=Math.ceil(n/2),R=n-L;const t=i<L?0.06+(i+0.5)/L*0.36:0.58+(i-L+0.5)/Math.max(1,R)*0.36;
   if(dir==='E')return {x:x-18,y:y+h*t};if(dir==='W')return {x:x+w+18,y:y+h*t};if(dir==='N')return {x:x+w*t,y:y+h+18};return {x:x+w*t,y:y-18};}
@@ -1348,9 +1357,34 @@ function targetFor(p){
   if(!j)return null;
   // the horn sounds: everyone who is not a guard drops their tools and runs for the shelter
   if(S.battle&&p.job!=='guard'){const sh=builtOf('shelter');const i=S.people.indexOf(p);if(sh.length){const t=sh[i%sh.length];const d=shelterDoor(t);return {x:d.x+((i%3)-1)*2,y:d.y,work:'hide',door:K(t.x,t.y)};}const c=hatcheryPos();return {x:c.x+((i%4)-1.5)*14,y:c.y+16+Math.floor(i/4)*8,work:'hide'};}
-  if(p.job==='scout'){const ph=(a.t/500+a.seed)%1;const out=ph<0.5;const g=Object.keys(S.gates).find(d=>S.gates[d]);const dir=g||['E','N','S','W'][Math.floor(a.seed)%4];
-    const edge=spawnPoint(dir,Math.floor(a.seed*3)%4);edge.x+=(dir==='E'?T:dir==='W'?-T:0);edge.y+=(dir==='S'?T*0.6:dir==='N'?-T*0.6:0);
-    const home=tileCenter(K(6,5));return out?{x:edge.x,y:edge.y,work:'walk'}:{x:home.x+20,y:home.y+20,work:'walk'};}
+  if(p.job==='scout'){
+    // A scout walks a real round trip: home -> gate -> forest -> (forage a moment) -> gate -> home.
+    // It used to be driven off a/500 phase, but the gate is further away than one phase is long, so he
+    // turned round before ever getting there and never crossed at the doorway. Now each leg ends when he
+    // ARRIVES, so the trip always completes however far the wall is. The forest leg is only passable to
+    // scouts (cellCost's `scout` flag), and without a gate he climbs the wall instead — and still brings
+    // back half, which is the gate's whole selling point.
+    const g=Object.keys(S.gates).find(d=>S.gates[d]);const dir=g||['E','N','S','W'][Math.floor(a.seed)%4];
+    const home=tileCenter(K(6,5));const hp={x:home.x+20,y:home.y+20};
+    // spawnPoint jitters with Math.random() on every call, so the forest spot is picked once per trip
+    // and remembered; otherwise the target moved under his feet each frame and he never arrived.
+    if(!a.sEdge||a.sDir!==dir){const e=spawnPoint(dir,Math.floor(a.seed*3)%4);
+      e.x+=(dir==='E'?T:dir==='W'?-T:0);e.y+=(dir==='S'?T*0.6:dir==='N'?-T*0.6:0);a.sEdge=e;a.sDir=dir;}
+    const near=(q,r)=>Math.hypot(a.x-q.x,a.y-q.y)<r;
+    const gp=g?gatePoint(dir):null;
+    if(!a.sLeg)a.sLeg=g?'toGate':'out';
+    // a gate can stop existing mid-trip (wall rebuilt, save loaded); drop the gate legs rather than aim at null
+    if(!g&&(a.sLeg==='toGate'||a.sLeg==='through'))a.sLeg='out';
+    if(!g&&(a.sLeg==='backGate'||a.sLeg==='backOut'))a.sLeg='home';
+    switch(a.sLeg){
+      case 'toGate': if(near(gp,12)){a.sLeg='through';} return {x:gp.x,y:gp.y,work:'walk'};
+      case 'through': {const o=gateOut(dir);if(near(o,12)){a.sLeg='out';} return {x:o.x,y:o.y,work:'walk'};}
+      case 'out': if(near(a.sEdge,26)){a.sLeg='forage';a.sWait=90;} return {x:a.sEdge.x,y:a.sEdge.y,work:'walk'};
+      case 'forage': {const e=a.sEdge;if(--a.sWait<=0)a.sLeg=g?'backOut':'home';return {x:e.x,y:e.y,work:'collect'};}
+      case 'backOut': {const o=gateOut(dir);if(near(o,12)){a.sLeg='backGate';} return {x:o.x,y:o.y,work:'walk'};}
+      case 'backGate': if(near(gp,12)){a.sLeg='home';} return {x:gp.x,y:gp.y,work:'walk'};
+      default: if(near(hp,26)){a.sLeg=g?'toGate':'out';a.sEdge=null;} return {x:hp.x,y:hp.y,work:'walk'};
+    }}
   if(p.job==='builder'){const q=S.queue[0];
     if(q){const i=inJob('builder').indexOf(p),nb=inJob('builder').length;
       if(q.kind==='wall'||q.kind==='gate'||q.kind==='tower'){const sp=wallSpot(q.dir,i,nb);return {x:sp.x,y:sp.y,work:'hammer'};}   // spread along the wall, one builder per stretch
@@ -2170,6 +2204,6 @@ if(savedGame){S=migrate(savedGame);render();showOpening();}
 else{showOpening();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
-window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
+window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
 })();
 </script>
