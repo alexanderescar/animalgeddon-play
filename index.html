@@ -44,7 +44,7 @@ input.rename{font:700 20px var(--body);padding:6px 10px;border:3px solid #7a4a24
 .ic{display:inline-block;width:32px;height:32px;background-image:url(icons.png?v=c8c84e75);background-repeat:no-repeat;vertical-align:middle;flex:0 0 auto}
 .ic.s{width:24px;height:24px}
 .por{display:inline-block;width:80px;height:80px;background-image:url(portraits.png?v=35c63c2e);background-repeat:no-repeat;image-rendering:pixelated;border:2px solid #6b4a2c;border-radius:6px;background-color:#2a2018;float:left;margin:0 12px 6px 0;flex:0 0 auto}
-.asp{display:inline-block;width:40px;height:40px;background-image:url(animals.png?v=65bc8e04);background-repeat:no-repeat;vertical-align:middle;flex:0 0 auto}
+.asp{display:inline-block;width:40px;height:40px;background-image:url(animals.png?v=447b7708);background-repeat:no-repeat;vertical-align:middle;flex:0 0 auto}
 .sp{display:inline-block;width:32px;height:32px;background-image:url(sheet.png?v=ec2cbd7e);background-repeat:no-repeat;vertical-align:middle}
 .psp{display:inline-block;position:relative;vertical-align:middle;image-rendering:pixelated}.psp i{position:absolute;left:0;top:0;width:100%;height:100%;background-image:url(people.png?v=e573a07a);background-repeat:no-repeat}
 .bsp{display:inline-block;background-image:url(bld.png?v=ea1e6e78);background-repeat:no-repeat;vertical-align:middle;image-rendering:pixelated}
@@ -239,7 +239,7 @@ function spr(name,x,y,scale=2,frame=0,flip=false,alpha=1){const a=ATLAS[name];if
 function tile(name,x,y){const a=ATLAS[name];if(!a||!sheetReady){ctx.fillStyle='#3a5a2c';ctx.fillRect(x,y,T,T);return;}ctx.drawImage(sheet,a.x,a.y,a.w,a.h,x,y,T,T);}
 const spCss=name=>{const a=ATLAS[name];if(!a)return '';return `background-position:-${a.x*2}px -${a.y*2}px;background-size:${(sheet.naturalWidth||512)*2}px auto;width:${a.w*2}px;height:${a.h*2}px`;};
 const ANIM={"rows":{"idle":[0,6],"walk":[1,4],"sleep":[2,4],"down":[3,4],"up":[4,4],"graze":[5,4],"scared":[6,4],"angry":[7,4],"death":[8,6]},"frame":32,"ground":24,"sprites":{"iguana":{"x":0,"src":"Lizard"},"crocodile":{"x":192,"src":"Crocodile"},"komodo":{"x":384,"src":"Crocodile"},"garter":{"x":4608,"y":288,"cell":64,"ground":48,"sc":1.25,"h":13,"src":"big:garter"},"cobra":{"x":4992,"y":288,"cell":64,"ground":48,"sc":1.35,"h":13,"src":"big:cobra"},"anaconda":{"x":5376,"y":288,"cell":64,"ground":48,"sc":1.45,"h":13,"src":"big:anaconda"},"treefrog":{"x":1152,"src":"Frog"},"toad":{"x":1344,"src":"Frog"},"dartfrog":{"x":1536,"src":"Frog"},"pigeon":{"x":1728,"src":"Pigeon"},"crow":{"x":1920,"src":"Crow"},"hawk":{"x":2112,"src":"Eagle"},"boxturtle":{"x":2304,"src":"Turtle"},"snapping":{"x":2496,"src":"Turtle"},"tortoise":{"x":2688,"src":"Turtle"},"mouse":{"x":2880,"src":"Mouse"},"squirrel":{"x":3072,"src":"Squirrel"},"boar":{"x":3264,"src":"Boar"},"bat":{"x":3456,"src":"Bat"},"cow":{"x":3648,"src":"Cow"},"bear":{"x":3840,"src":"Bear"},"hedgehog":{"x":4032,"src":"Hedgehog"},"rooster":{"x":0,"y":288,"cell":64,"ground":48,"sc":0.6,"h":32,"src":"big:rooster"},"turkey":{"x":384,"y":288,"cell":64,"ground":48,"sc":1.0,"h":16,"src":"big:turkey"},"emu":{"x":768,"y":288,"cell":64,"ground":48,"sc":0.9,"h":29,"src":"big:emu"},"deer":{"x":1152,"y":288,"cell":64,"ground":48,"sc":0.75,"h":45,"src":"big:deer"},"sheep":{"x":1536,"y":288,"cell":64,"ground":48,"sc":1.3,"h":13,"src":"big:sheep"},"goat":{"x":1920,"y":288,"cell":64,"ground":48,"sc":0.8,"h":27,"src":"big:goat"},"pig":{"x":2304,"y":288,"cell":64,"ground":48,"sc":0.8,"h":23,"src":"big:pig"},"wolf":{"x":2688,"y":288,"cell":64,"ground":48,"sc":1.15,"h":17,"src":"big:wolf"},"wolf_b":{"x":3072,"y":288,"cell":64,"ground":48,"sc":1.15,"h":17,"src":"big:wolf_b"},"wolf_c":{"x":3456,"y":288,"cell":64,"ground":48,"sc":1.15,"h":17,"src":"big:wolf_c"},"wolf_healthy":{"x":3840,"y":288,"cell":64,"ground":48,"sc":1.15,"h":17,"src":"big:wolf_healthy"},"sheep_healthy":{"x":4224,"y":288,"cell":64,"ground":48,"sc":1.3,"h":13,"src":"big:sheep_healthy"},"rat":{"x":5760,"y":288,"cell":64,"ground":48,"sc":1.0,"h":11,"src":"big:rat"},"rat_b":{"x":6144,"y":288,"cell":64,"ground":48,"sc":1.0,"h":11,"src":"big:rat_b"},"rat_c":{"x":6528,"y":288,"cell":64,"ground":48,"sc":1.0,"h":11,"src":"big:rat_c"},"coyote":{"x":6912,"y":288,"cell":64,"ground":48,"sc":1.05,"h":28,"src":"big:coyote"},"raccoon":{"x":7296,"y":288,"cell":64,"ground":48,"sc":0.95,"h":26,"src":"big:raccoon"},"opossum":{"x":7680,"y":288,"cell":64,"ground":48,"sc":0.9,"h":24,"src":"big:opossum"}}};const ANIMW=Object.values(ANIM.sprites).filter(s=>!s.cell).length*192;   // width of the 32-cell strip; the 64-cell band below it starts at y=288
-const asheet=new Image();let asheetReady=false;asheet.src='animals.png?v=65bc8e04';asheet.onload=()=>{asheetReady=true;};
+const asheet=new Image();let asheetReady=false;asheet.src='animals.png?v=447b7708';asheet.onload=()=>{asheetReady=true;};
 const AFPS={idle:6,walk:8,down:8,up:8,sleep:4,graze:4,scared:9,angry:8,death:4};
 function aspr(name,row,frame,x,y,flip=false,scale=1.5,alpha=1,wide=1){const s=ANIM.sprites[name];if(!s||!asheetReady)return false;const [r,n]=ANIM.rows[row]||ANIM.rows.idle;const f=Math.max(0,frame)%n;const F=s.cell||ANIM.frame,G=s.ground||ANIM.ground,sy=s.y||0;scale*=s.sc||1;
   ctx.save();ctx.globalAlpha=alpha;ctx.translate(Math.round(x),Math.round(y));if(flip)ctx.scale(-1,1);ctx.drawImage(asheet,s.x+f*F,sy+r*F,F,F,-F*scale*wide/2,-G*scale,F*scale*wide,F*scale);ctx.restore();return true;}
@@ -406,6 +406,7 @@ function drawTree(x,y,r,alpha,running){const si=S?seasonIdx():1;const late=S&&si
   if(pine){const im=treeImg(PINE[si]);if(!im.ready)return false;const f=Math.floor((sway/7+r*8))%8;const sc=0.7*T/64;ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(im,f*128,0,128,128,Math.round(x-64*sc),Math.round(y-118*sc),128*sc,128*sc);ctx.restore();return true;}
   const im=treeImg('trees_classical');if(!im.ready)return false;const row=late?3:TREE_ROW[si];const f=Math.floor((sway/6+r*16))%16;ctx.save();ctx.globalAlpha=alpha;const ts=T/64;if(r*3%1>0.5){ctx.translate(Math.round(x),0);ctx.scale(-1,1);ctx.drawImage(im,f*64,row*64,64,64,-32*ts,Math.round(y-60*ts),64*ts,64*ts);}else ctx.drawImage(im,f*64,row*64,64,64,Math.round(x-32*ts),Math.round(y-60*ts),64*ts,64*ts);ctx.restore();return true;}
 /* lighting */
+let flashT=0,lastBolt=-9999;   // lightning during a downpour battle
 const lightCv=document.createElement('canvas');lightCv.width=COLS*T;lightCv.height=ROWS*T;const lctx=lightCv.getContext('2d');
 function drawNight(dark,fireT){lctx.globalCompositeOperation='source-over';lctx.clearRect(0,0,lightCv.width,lightCv.height);lctx.fillStyle=`rgba(8,10,34,${dark})`;lctx.fillRect(0,0,lightCv.width,lightCv.height);lctx.globalCompositeOperation='destination-out';
   const punch=(cx,cy,rad,str)=>{const g=lctx.createRadialGradient(cx,cy,2,cx,cy,rad);g.addColorStop(0,`rgba(0,0,0,${str})`);g.addColorStop(.55,`rgba(0,0,0,${str*.45})`);g.addColorStop(1,'rgba(0,0,0,0)');lctx.fillStyle=g;lctx.fillRect(cx-rad,cy-rad,rad*2,rad*2);};
@@ -1716,14 +1717,15 @@ function draw(ts){
   // shifting a little and watching. No hit boxes and no behaviour - this is only the wait made visible.
   if(S.massing&&S.massing.day===S.day&&!S.battle){const MS=S.massing;const hr=S.hour;
     const dk=hr<5?.42:hr<7?.42-(hr-5)*.21:hr<18?0:hr<21?(hr-18)*.14:.42;
+    const fogged=W()==='fog'?0.35:1;   // fog is why the warning comes late: you can barely see them
     MS.dirs.forEach(dir=>{for(let i=0;i<MS.n;i++){
       const sp=spawnPoint(dir,i);const ph=tickA/90+i*1.7;
       const mx=sp.x+(dir==='E'?34:dir==='W'?-34:0)+Math.sin(ph)*5;
       const my=sp.y+(dir==='S'?26:dir==='N'?-26:0)+Math.cos(ph*0.7)*3;
-      ctx.globalAlpha=0.5+0.15*Math.sin(ph*1.3);
+      ctx.globalAlpha=(0.5+0.15*Math.sin(ph*1.3))*fogged;
       ctx.fillStyle='#0d0b09';ctx.beginPath();ctx.ellipse(mx,my,9,6,0,0,Math.PI*2);ctx.fill();
       ctx.fillRect(mx-7,my-8,5,5);
-      if(dk>0.2){ctx.globalAlpha=Math.min(1,dk*1.8);ctx.fillStyle='#ffb13b';
+      if(dk>0.2){ctx.globalAlpha=Math.min(1,dk*1.8)*fogged;ctx.fillStyle='#ffb13b';
         ctx.fillRect(mx-6,my-7,1.5,1.5);ctx.fillRect(mx-3.5,my-7,1.5,1.5);}
     }});ctx.globalAlpha=1;}
   if(drag&&drag.moved&&drag.creature){builtOf('pen').forEach(t=>{ctx.fillStyle=`rgba(240,182,74,${.1+pulse*.1})`;ctx.fillRect(t.x*T,t.y*T,T,T);});}
@@ -1774,12 +1776,24 @@ function draw(ts){
   if(dark>0&&CFG.fx){drawNight(dark,fireT);litShelters(dark);}
   else if(dark>0){ctx.fillStyle=`rgba(8,10,30,${dark})`;ctx.fillRect(-20,-20,cv.width+40,cv.height+40);litShelters(dark);
     if(fireT){const rad=Math.min(fireRadius(),6)*T;const g=ctx.createRadialGradient(fireT.x*T+H2,fireT.y*T+H2,4,fireT.x*T+H2,fireT.y*T+H2,rad);g.addColorStop(0,`rgba(255,180,80,${dark*.6})`);g.addColorStop(1,'rgba(255,180,80,0)');ctx.fillStyle=g;ctx.fillRect(fireT.x*T-rad,fireT.y*T-rad,T+2*rad,T+2*rad);}}
-  const wx=W();
-  if(wx==='snow'){for(let i=0;i<40;i++){const sx=(i*137+(running?tickA*0.6:0)+Math.sin(i+tickA/40)*30)%(cv.width+40)-20,sy=(i*91+(running?tickA*1.1:0))%(cv.height+40)-20;ctx.fillStyle='rgba(255,255,255,.7)';ctx.fillRect(sx,sy,2,2);}}
+  // Weather in a fight. The rules were always in the model - rain slows the herd, fog costs you the
+  // early warning, snow halves what the scouts bring back - and the sky was drawn, but it was drawn
+  // the same whether the camp was asleep or the wall was going. From here the weather leans in once
+  // a horde is on: the rain comes down twice as hard and throws lightning, snow thickens to a haze,
+  // and fog closes to the point where the shapes on the tree line are nearly gone.
+  const wx=W(); const fighting=!!S.battle && S.battle.kind!=='prowl';
+  if(wx==='snow'){if(fighting){ctx.fillStyle='rgba(222,234,250,.13)';ctx.fillRect(-20,-20,cv.width+40,cv.height+40);}
+    for(let i=0;i<(fighting?120:40);i++){const sx=(i*137+(running?tickA*0.6:0)+Math.sin(i+tickA/40)*30)%(cv.width+40)-20,sy=(i*91+(running?tickA*1.1:0))%(cv.height+40)-20;ctx.fillStyle='rgba(255,255,255,.7)';ctx.fillRect(sx,sy,2,2);}}
   if(wx==='rain'&&CFG.fx){for(let i=0;i<14;i++){const px=(hash2(i,77)*COLS)|0,py=(hash2(77,i)*ROWS)|0;if(!isOpen(px,py)||tileAt(px,py))continue;const cx=px*T+T*0.25+hash2(i,5)*H2,cy=py*T+T*0.3+hash2(5,i)*(T*0.45);ctx.fillStyle='rgba(120,150,200,.28)';ctx.beginPath();ctx.ellipse(cx,cy,14+hash2(i,9)*10,6+hash2(9,i)*4,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='rgba(220,235,255,.25)';ctx.fillRect(cx-4+((tickA/4+i)%6),cy-2,3,1);}}
-  if(wx==='rain'){ctx.strokeStyle='rgba(170,205,255,.35)';ctx.lineWidth=1;ctx.beginPath();for(let i=0;i<(CFG.fx?110:70);i++){const sx=(i*149+(running?tickA*2:0))%(cv.width+60)-30,sy=(i*83+(running?tickA*9:0))%(cv.height+40)-20;ctx.moveTo(sx,sy);ctx.lineTo(sx-3,sy+12);}ctx.stroke();ctx.fillStyle='rgba(40,60,90,.14)';ctx.fillRect(-20,-20,cv.width+40,cv.height+40);}
-  if(wx==='fog'){ctx.fillStyle='rgba(190,200,190,.22)';ctx.fillRect(-20,-20,cv.width+40,cv.height+40);for(let i=0;i<5;i++){const yy=(i*160+(running?tickA*0.3:0))%(cv.height+200)-100;const g=ctx.createLinearGradient(0,yy,0,yy+90);g.addColorStop(0,'rgba(210,220,210,0)');g.addColorStop(.5,'rgba(210,220,210,.16)');g.addColorStop(1,'rgba(210,220,210,0)');ctx.fillStyle=g;ctx.fillRect(0,yy,cv.width,90);}}
-  if(wx==='heat'){ctx.fillStyle='rgba(255,150,50,.09)';ctx.fillRect(-20,-20,cv.width+40,cv.height+40);}
+  if(wx==='rain'){ctx.strokeStyle=`rgba(170,205,255,${fighting?.5:.35})`;ctx.lineWidth=1;ctx.beginPath();for(let i=0;i<((CFG.fx?110:70)*(fighting?1.9:1));i++){const sx=(i*149+(running?tickA*2:0))%(cv.width+60)-30,sy=(i*83+(running?tickA*9:0))%(cv.height+40)-20;ctx.moveTo(sx,sy);ctx.lineTo(sx-3,sy+12);}ctx.stroke();ctx.fillStyle=`rgba(40,60,90,${fighting?.2:.14})`;ctx.fillRect(-20,-20,cv.width+40,cv.height+40);
+    // lightning only while they are on the wall: a flash, then the roll a beat later
+    if(fighting&&running){if(tickA-lastBolt>380&&Math.random()<0.015){lastBolt=tickA;flashT=1;thunder();}
+      if(flashT>0){flashT-=0.05;ctx.fillStyle=`rgba(226,238,255,${Math.max(0,flashT)*0.45})`;ctx.fillRect(-20,-20,cv.width+40,cv.height+40);}}}
+  if(wx==='fog'){ctx.fillStyle=`rgba(190,200,190,${fighting?.34:.22})`;ctx.fillRect(-20,-20,cv.width+40,cv.height+40);for(let i=0;i<(fighting?8:5);i++){const yy=(i*160+(running?tickA*0.3:0))%(cv.height+200)-100;const g=ctx.createLinearGradient(0,yy,0,yy+90);g.addColorStop(0,'rgba(210,220,210,0)');g.addColorStop(.5,'rgba(210,220,210,.16)');g.addColorStop(1,'rgba(210,220,210,0)');ctx.fillStyle=g;ctx.fillRect(0,yy,cv.width,90);}}
+  if(wx==='heat'){ctx.fillStyle='rgba(255,150,50,.09)';ctx.fillRect(-20,-20,cv.width+40,cv.height+40);
+    if(fighting){for(let i=0;i<20;i++){const yy=cv.height*0.3+i*(cv.height*0.62/20);
+      ctx.fillStyle=`rgba(255,228,180,${Math.max(0,.035+.025*Math.sin(tickA/26+i*0.8))})`;
+      ctx.fillRect(Math.sin(tickA/60+i)*8,yy,cv.width,2);}}}
   if(sel){const [x,y]=sel.split(',').map(Number);ctx.strokeStyle='#f0b64a';ctx.lineWidth=3;ctx.strokeRect(x*T+1.5,y*T+1.5,T-3,T-3);}
   if(hoverTile&&!drag){ctx.strokeStyle='rgba(233,240,220,.35)';ctx.lineWidth=2;ctx.strokeRect(hoverTile.x*T+1,hoverTile.y*T+1,T-2,T-2);}
   if(!CFG.shake)shake=0;ctx.restore();
@@ -2329,6 +2343,6 @@ if(savedGame){S=migrate(savedGame);render();showOpening();}
 else{showOpening();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
-window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
+window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,coldFactor,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
 })();
 </script>
