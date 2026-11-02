@@ -832,7 +832,7 @@ function newGame(modeId,keepDone){
   const MD=MODES[modeId];const m=MD.start;
   S={mode:modeId,day:1,hour:6,speed:0,morale:6,res:{wood:Math.round(30*m),scrap:Math.round(16*m),greens:Math.round(24*m),rodents:Math.round(6*m),insects:Math.round(8*m),research:0,hide:0,bone:0},gear:{},craft:[],stats:{kills:0,born:0,hatched:0,crafted:0,gapHeld:0,seen:[],met:[]},breed:{},
      tiles:{},queue:[],open:['core'],walls:{N:{lvl:0,hp:0},E:{lvl:0,hp:0},S:{lvl:0,hp:0},W:{lvl:0,hp:0}},gates:{},towers:{},
-     people:[],creatures:[],eggs:[],roads:{},nests:[],tips:{},done:(MD.keep&&keepDone)||[],nextId:1,over:false,report:null,log:[],alerts:[],lastBirth:0,warned:{},hordeDone:0,hordeWarned:0,lastHorde:null,battle:null,breaches:0,rolled:null,seasonShown:0,started:true,weather:'clear',perks:[],milestones:[],evId:null,evHour:0,ev:{},contact:false,relics:[]};
+     people:[],creatures:[],eggs:[],roads:{},nests:[],tips:{},done:(MD.keep&&keepDone)||[],nextId:1,over:false,report:null,log:[],alerts:[],lastBirth:0,warned:{},hordeDone:0,hordeWarned:0,lastHorde:null,battle:null,breaches:0,rolled:null,seasonShown:0,started:true,weather:'clear',perks:[],milestones:[],evId:null,evHour:0,ev:{},contact:false,relics:[],repair:{}};
   place('hatchery',7,6,true); place('shelter',6,5,true); place('garden',8,5,true); place('pen',8,6,true); place('signal',6,6,true);
   const roster=[['Ruth','Farmer'],['Deacon','Mechanic'],['Mara','Medic'],['Otis','Soldier'],['Lena','Farmer']].slice(0,MD.people);
   roster.forEach(([n,s])=>S.people.push(newPerson(n,s)));
@@ -974,6 +974,16 @@ function tick(){
   if(S.hour%6===3&&!S.battle){GATHER.concat(['lab']).forEach(k=>{const ts=builtOf(k);if(!ts.length)return;const res=JOBS[BUILD[k].job].res;const v=prod[res]||0;if(v<=0)return;const t=ts[0];const c=tileCenter(K(t.x,t.y));floater(c.x+(Math.random()-0.5)*20,c.y-20,`+${Math.round(v/4*10)/10} ${RESN[res]||res}`,'#dcbd8f');});}
   let pts=buildPts()/24;
   if(!S.battle&&pts>0){const br=Object.entries(S.walls).find(([d,w])=>w.lvl&&w.broken);if(br){const [d,w]=br;const need=wallMax(w.lvl)*0.25-w.hp;const take=Math.min(need,pts*2);if(take>0){w.hp+=take;pts-=take/2;}if(w.hp>=wallMax(w.lvl)*0.25){w.broken=false;log(`The gap in the ${DIRS[d].toLowerCase()} wall is patched.`,'g');alert_('Gap patched',`Builders closed the gap in the ${DIRS[d].toLowerCase()} wall. It still needs repairs before the next horde.`,'good');}}}
+  // Repair you asked for. Until now a battered wall only got mended when the build queue was
+  // empty, which on a busy camp was never. "Repair first" on a wall card puts that wall ahead of
+  // the queue: builders spend their points here, at their full build rate, and the flag clears
+  // itself when the wall is whole.
+  if(!S.battle&&pts>0&&S.repair){for(const d of Object.keys(DIRS)){if(!S.repair[d])continue;const w=S.walls[d];
+    if(!w.lvl||w.hp>=wallMax(w.lvl)){S.repair[d]=false;continue;}
+    const take=Math.min(wallMax(w.lvl)-w.hp,pts);w.hp+=take;pts-=take;
+    if(w.broken&&w.hp>=wallMax(w.lvl)*0.25){w.broken=false;log(`The gap in the ${DIRS[d].toLowerCase()} wall is patched.`,'g');}
+    if(w.hp>=wallMax(w.lvl)-1e-6){w.hp=wallMax(w.lvl);S.repair[d]=false;log(`The ${DIRS[d].toLowerCase()} wall is repaired.`,'g');sfx('done');}
+    if(pts<=0)break;}}
   for(const q of S.queue){if(pts<=0)break;const use=Math.min(q.need-q.bp,pts);q.bp+=use;pts-=use;}
   const fin=finishQueue();if(CFG.finishAlerts)fin.forEach(n=>alert_('Finished',`${n} is ready.`,'good'));else fin.forEach(n=>floater(cv.width/2,cv.height/2-40,`${n} ready`,'#8fd45c'));
   if(!S.queue.length&&!S.battle){let rep=inJob('builder').reduce((n,p)=>n+tier(p.st.spd)*eff(p),0)/24;let did=false;
@@ -1182,6 +1192,8 @@ function hitEnemy(e,dmg){e.hp-=dmg;e.flash=0.08;}
 // so damage-per-second is identical and every balance number still holds - but now a blow LANDS.
 // The seed staggers each attacker's clock so a row of five does not bite in unison.
 const STRIKE_EVERY=0.75;
+// how far along the wall an attacker can be and still be "in front of" a posted animal
+const BITE_ALONG=30;
 function strike(o,key,rate,dt,seed){
   const bk=key+'B',ck=key+'T';
   o[bk]=(o[bk]||0)+rate*dt;
@@ -1275,7 +1287,7 @@ function updateBattle(dt){
   if(!S.battle)return;
   guardAnimals.concat(patrolAnimals).forEach(c=>{const a=anim[c.id];if(!a)return;const s=SPECIES[c.sp];c.cd=Math.max(0,(c.cd||0)-dt);if(a.bite>0)a.bite=Math.max(0,a.bite-dt);if(c.stun>0){c.stun-=dt;return;}
     const reach=s.ab==='dive'?4*T:(s.ab==='blind'||s.ab==='poison2')?2*T:40;
-    const cands=c.post==='patrol'?B.enemies.filter(e=>!e.dead&&!e.playing&&!e.dying&&e.inside&&Math.hypot(a.x-e.x,a.y-e.y)<44):B.enemies.filter(e=>!e.dead&&!e.playing&&!e.dying&&((e.atWall&&e.dir===c.front)||Math.hypot(a.x-e.x,a.y-e.y)<reach));
+    const cands=c.post==='patrol'?B.enemies.filter(e=>!e.dead&&!e.playing&&!e.dying&&e.inside&&Math.hypot(a.x-e.x,a.y-e.y)<44):B.enemies.filter(e=>!e.dead&&!e.playing&&!e.dying&&((e.atWall&&e.dir===c.front&&Math.abs(ALONG(c.front,e)-ALONG(c.front,a))<BITE_ALONG)||Math.hypot(a.x-e.x,a.y-e.y)<reach));
     if(!cands.length)return;
     const target=s.ab==='dive'?cands.sort((u,v)=>u.hp-v.hp)[0]:cands.sort((u,v)=>Math.hypot(a.x-u.x,a.y-u.y)-Math.hypot(a.x-v.x,a.y-v.y))[0];
     let rate=cpower(c)*((s.ab==='quick'||s.ab==='spur')?1.5:1)*coldFactor(c)*(hasPerk('sharpteeth')?1.2:1);
@@ -1470,6 +1482,25 @@ function gatePoint(dir){const [x,y,ww,hh]=wallRect(dir);
 function gateOut(dir,d=34){const g=gatePoint(dir);
   return {x:g.x+(dir==='E'?d:dir==='W'?-d:0),y:g.y+(dir==='S'?d:dir==='N'?-d:0)};}
 // animal spots along a wall: half on each side of the middle, which is the watchtower's
+// Wall animals used to stand on fixed slots and bite anything at their front from anywhere along
+// it, which read as teleporting teeth: an iguana at the north end of the east wall chewing a wolf at
+// the south end. Now each one slides along the wall to stand opposite the nearest attacker, and
+// (see the bite rule) only bites what is actually in front of it. Animals that pick the same enemy
+// fan out either side of it instead of stacking. Clamped to the run so nobody walks off the end.
+const ALONG=(dir,p)=>(dir==='E'||dir==='W')?p.y:p.x;
+function wallEngage(c,list,i){const dir=c.front;const B=S.battle;const a=anim[c.id];if(!B||!a)return null;
+  const atFront=B.enemies.filter(e=>!e.dead&&!e.dying&&!e.playing&&!e.inside&&e.dir===dir&&(e.atWall||wallDistOf(e)<70));
+  if(!atFront.length)return null;
+  const [x,y,w,h]=wallRect(dir);const vert=dir==='E'||dir==='W';
+  const lo=(vert?y:x)+16,hi=(vert?y+h:x+w)-16;
+  const near=e=>Math.abs(ALONG(dir,e)-ALONG(dir,a));
+  const mine=atFront.slice().sort((u,v)=>near(u)-near(v))[0];
+  // how many animals ahead of me in the list chose this same enemy: fan out around it
+  let k=0;for(let j=0;j<i;j++){const o=anim[list[j].id];if(!o)continue;const their=atFront.slice().sort((u,v)=>Math.abs(ALONG(dir,u)-ALONG(dir,o))-Math.abs(ALONG(dir,v)-ALONG(dir,o)))[0];if(their===mine)k++;}
+  const fan=k?((k%2?1:-1)*Math.ceil(k/2)*18):0;
+  const al=Math.max(lo,Math.min(hi,ALONG(dir,mine)+fan));
+  if(dir==='E')return {x:x-18,y:al};if(dir==='W')return {x:x+w+18,y:al};if(dir==='N')return {x:al,y:y+h+18};return {x:al,y:y-18};}
+function wallDistOf(e){const [x,y,ww,hh]=wallRect(e.dir);const cx=Math.max(x,Math.min(x+ww,e.x)),cy=Math.max(y,Math.min(y+hh,e.y));return Math.hypot(e.x-cx,e.y-cy);}
 function wallSpot(dir,i,n){const [x,y,w,h]=wallRect(dir);const L=Math.ceil(n/2),R=n-L;const t=i<L?0.06+(i+0.5)/L*0.36:0.58+(i-L+0.5)/Math.max(1,R)*0.36;
   if(dir==='E')return {x:x-18,y:y+h*t};if(dir==='W')return {x:x+w+18,y:y+h*t};if(dir==='N')return {x:x+w*t,y:y+h+18};return {x:x+w*t,y:y-18};}
 function sectorCenter(dir){const r=SECTOR[dir];return {x:(r.x0+r.x1+1)/2*T,y:(r.y0+r.y1+1)/2*T};}
@@ -1514,6 +1545,8 @@ function targetFor(p){
       default: if(near(hp,26)){a.sLeg=g?'toGate':'out';a.sEdge=null;} return {x:hp.x,y:hp.y,work:'walk'};
     }}
   if(p.job==='builder'){const q=S.queue[0];
+    const pri=S.repair&&Object.keys(DIRS).find(d=>S.repair[d]&&S.walls[d].lvl&&S.walls[d].hp<wallMax(S.walls[d].lvl));
+    if(pri&&!S.battle){const i=inJob('builder').indexOf(p);const sp=wallSpot(pri,i,inJob('builder').length);return {x:sp.x,y:sp.y,work:'hammer'};}
     if(q){const i=inJob('builder').indexOf(p),nb=inJob('builder').length;
       if(q.kind==='wall'||q.kind==='gate'||q.kind==='tower'){const sp=wallSpot(q.dir,i,nb);return {x:sp.x,y:sp.y,work:'hammer'};}   // spread along the wall, one builder per stretch
       let c=(q.kind==='tile'||q.kind==='up')?tileCenter(q.key):q.kind==='road'?(()=>{const [cx,cy]=q.key.split(',').map(Number);return {x:cx*H2+H2/2,y:cy*H2+H2/2};})():sectorCenter(q.dir);const o=slotOffset(i);return {x:c.x+o[0],y:c.y+o[1]+8,work:'hammer'};}
@@ -1533,7 +1566,8 @@ function creatureTarget(c){
   if(drag&&drag.moved&&drag.creature===c)return {x:drag.pos.x,y:drag.pos.y};
   if(c.post==='guard'){const list=guardsOf(c.front);const i=list.indexOf(c);const B=S.battle;
     if(B&&S.walls[c.front].broken){const g=gapPoint(c.front);const o=slotOffset(i);return {x:g.x+o[0]*1.2,y:g.y+o[1]*1.2};}
-    if(B){const a=anim[c.id];const live=B.enemies.filter(e=>e.inside&&!e.playing&&!e.dying&&!ENEMY[e.type].sneak);if(live.length&&a&&(!S.walls[c.front].lvl||live.some(e=>ENEMY[e.type].fly))){const t=live.sort((u,v)=>Math.hypot(u.x-a.x,u.y-a.y)-Math.hypot(v.x-a.x,v.y-a.y))[0];return {x:t.x-(t.x>a.x?18:-18),y:t.y};}}
+    if(B){const a=anim[c.id];const live=B.enemies.filter(e=>e.inside&&!e.playing&&!e.dying&&!ENEMY[e.type].sneak);if(live.length&&a&&(!S.walls[c.front].lvl||live.some(e=>ENEMY[e.type].fly))){const t=live.sort((u,v)=>Math.hypot(u.x-a.x,u.y-a.y)-Math.hypot(v.x-a.x,v.y-a.y))[0];return {x:t.x-(t.x>a.x?18:-18),y:t.y};}
+      const eng=wallEngage(c,list,i);if(eng)return eng;}
     return wallSpot(c.front,i,list.length);}
   if(c.post==='patrol'){const a=anim[c.id];const B=S.battle;
     if(B&&a){const live=B.enemies.filter(e=>e.inside&&!e.dead&&!e.playing&&!e.dying);if(live.length){const t=live.sort((u,v)=>Math.hypot(u.x-a.x,u.y-a.y)-Math.hypot(v.x-a.x,v.y-a.y))[0];const dd=Math.max(1,Math.hypot(a.x-t.x,a.y-t.y));if(dd<18)return {x:a.x,y:a.y};return {x:t.x+(a.x-t.x)/dd*14,y:t.y+(a.y-t.y)/dd*14};}}
@@ -1934,6 +1968,11 @@ function wallCard(dir,focus){
   box.appendChild(el('small','',w.lvl?`${L.name}${w.broken?' · <span class="bad">GAP: builders patch it after the fight</span>':''}${S.gates[dir]?' · '+EM.gate+' gate':''}${S.towers[dir]?' · '+EM.tower+' watchtower':''} · ${L.slots} animal slots`:front?'The herd can walk straight in. 3 animal slots in the open.':'Forest on this side. Safe until you clear it.'));
   if(q)box.appendChild(el('small','warn',`${WALL_LVL[q.lvl].name} ${fl(q.bp)}/${q.need} bp`));
   else if(nx&&(front||w.lvl)){const locked=nx.req&&!hasR(nx.req);const b=btn(w.lvl?'Upgrade wall':'Build wall',`${nx.name} · ${costStr(nx.cost)} · ${nx.bp} bp · ${nx.hp} HP · ${nx.slots} slots${locked?' · needs research':''}`,()=>queueWall(dir));b.disabled=locked||!canPay(nx.cost)||S.over;box.appendChild(b);}
+  if(w.lvl&&w.hp<wallMax(w.lvl)-0.01){const on=!!(S.repair&&S.repair[dir]);
+    const rb=btn(on?`${EM.wall} Repairing first`:`${EM.wall} Repair first`,on?`builders are on it ahead of the queue · ${Math.ceil(w.hp)}/${wallMax(w.lvl)} HP · click to stop`:`${Math.ceil(w.hp)}/${wallMax(w.lvl)} HP · put this wall ahead of everything in the build queue`,
+      ()=>{S.repair=S.repair||{};S.repair[dir]=!on;if(!on)log(`Builders will repair the ${DIRS[dir].toLowerCase()} wall before anything else.`,'d');sfx('click');save();render();},'sm'+(on?' sel':''));
+    rb.disabled=S.over||!inJob('builder').length;box.appendChild(rb);
+    if(!inJob('builder').length)box.appendChild(el('small','bad','No builders: nobody to repair it.'));}
   if(w.lvl){const r=el('div','row');const gq=queueItem('gate',dir),tq=queueItem('tower',dir);
     if(!S.gates[dir]){const b=btn(`${EM.gate} Gate`,gq?`${fl(gq.bp)}/${gq.need} bp`:`${costStr(GATE.cost)} · ${GATE.bp} bp · scouts leave at full speed`,()=>queueExtra('gate',dir),'sm');b.disabled=!!gq||!canPay(GATE.cost)||S.over;r.appendChild(b);}
     if(!S.towers[dir]){const lk=!hasR('towers');const b=btn(`${EM.tower} Watchtower`,tq?`${fl(tq.bp)}/${tq.need} bp`:lk?'research Watchtowers first':`${costStr(TOWER.cost)} · ${TOWER.bp} bp · guards fire from it: 4 tiles of reach instead of 2.5, hits 1.5x · 2h early warning`,()=>queueExtra('tower',dir),'sm');b.disabled=lk||!!tq||!canPay(TOWER.cost)||S.over;r.appendChild(b);}
@@ -2395,6 +2434,6 @@ if(savedGame){S=migrate(savedGame);render();showOpening();}
 else{showOpening();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
-window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,coldFactor,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
+window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,coldFactor,wallMax,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
 })();
 </script>
