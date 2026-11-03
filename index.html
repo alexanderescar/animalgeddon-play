@@ -1182,8 +1182,15 @@ function startBattle(opts={}){
   alert_('They\'re here',`${list.length} infected (${summarize(all)}) from the ${dirs.map(d=>DIRS[d].toLowerCase()).join(' and ')}${nW>1?', coming in '+nW+' waves':''}. ${list.includes('bat')?'Bats fly over the wall and go for your birds. ':''}${list.includes('rat')?'Rats slip through a damaged wall and raid the garden. ':''}${list.includes('boar')?'Boars charge and knock defenders back. ':''}${list.includes('wolf')?'Wolves work along the wall looking for a gap. ':''}${list.includes('sheep')?'Sheep come in threes and get in the way. ':''}${list.includes('deer')?'Deer leap a battered wooden wall: keep it patched or have a patrol inside. ':''}${list.includes('bear')?'A bear slams the wall and then stands and fights: post your heaviest animals. ':''}Your animals bite anything that reaches their wall. If a wall breaks, a gap opens and your animals fall back to hold it.`,'bad',true);
 }
 const COATS={wolf:['wolf','wolf_b','wolf_c'],rat:['rat','rat_b','rat_c'],bat:['bat','bat_b','bat_c']};   // alternate sprites so a pack reads as individuals
-function mkEnemy(t,dir,i){const e=ENEMY[t];if(S.stats.met&&!S.stats.met.includes(t))S.stats.met.push(t);const sp=spawnPoint(dir,i);return {id:S.nextId++,type:t,skin:COATS[t]?pick(COATS[t]):t,dir,x:sp.x,y:sp.y,hp:e.hp,maxhp:e.hp,inside:false,atWall:false,face:1,t:rnd(100),blind:0,dot:0,dotT:0,stole:0,laneT:Math.random()*4,laneOff:0,jx:0,jy:0,jt:0};}
-function spawnWave(){const B=S.battle;const list=B.waves[B.wave];const fresh=list.map((t,i)=>mkEnemy(t,B.dirs[i%B.dirs.length],i));B.enemies.push(...fresh);B.wave++;B.lull=0;B.waveT=0;
+function mkEnemy(t,dir,i,press){const e=ENEMY[t];if(S.stats.met&&!S.stats.met.includes(t))S.stats.met.push(t);
+  // its own spot on the wall: the wave's press point plus a little scatter, so a wave hits a stretch
+  // rather than a pixel, and a different wave hits a different stretch
+  const along=Math.max(0.07,Math.min(0.93,(press==null?0.5:press)+(Math.random()-0.5)*0.36));
+  const sp=spawnPoint(dir,i,along);return {id:S.nextId++,type:t,skin:COATS[t]?pick(COATS[t]):t,dir,along,x:sp.x,y:sp.y,hp:e.hp,maxhp:e.hp,inside:false,atWall:false,face:1,t:rnd(100),blind:0,dot:0,dotT:0,stole:0,laneT:Math.random()*4,laneOff:0,jx:0,jy:0,jt:0};}
+function spawnWave(){const B=S.battle;const list=B.waves[B.wave];
+  // where this wave leans on each front: anywhere from a sixth of the way along to five sixths
+  const press={};B.dirs.forEach(d=>{press[d]=0.17+Math.random()*0.66;});
+  const fresh=list.map((t,i)=>mkEnemy(t,B.dirs[i%B.dirs.length],i,press[B.dirs[i%B.dirs.length]]));B.enemies.push(...fresh);B.wave++;B.lull=0;B.waveT=0;
   if(B.wave>1){sfx('horn');shake=6;ticker(`Wave ${B.wave}: ${summarize(fresh)} out of the trees`);}}
 // Weight: 0 routine, 1 notable (first blood, something big goes down), 2 the ones that decide a
 // night (a veteran coming of age, the wall going). Everything used to read in the same flat voice.
@@ -1191,9 +1198,16 @@ function ticker(msg,w){const B=S.battle;if(!B)return;B.ticker.unshift({msg,t:0,w
 function gapPoint(dir){const [x,y,w,h]=wallRect(dir);if(dir==='E')return {x:x-16,y:y+h/2};if(dir==='W')return {x:x+w+16,y:y+h/2};if(dir==='N')return {x:x+w/2,y:y+h+16};return {x:x+w/2,y:y-16};}
 const plural=(w,n)=>n===1?w:w==='wolf'?'wolves':w==='deer'?'deer':w.endsWith('s')?w+'es':w+'s';
 const summarize=list=>{const c={};list.forEach(e=>c[e.type]=(c[e.type]||0)+1);return Object.entries(c).map(([t,n])=>`${n} ${plural(ENEMY[t].name.toLowerCase(),n)}`).join(', ');};
-function spawnPoint(dir,i){const r=SECTOR.core;const spread=(i%4-1.5)*22+(Math.random()-0.5)*10;const far=T+20+Math.floor(i/4)*26;
-  if(dir==='E')return {x:(S.open.includes('E')?14:11)*T+far,y:(r.y0+2)*T+spread*2};if(dir==='W')return {x:(S.open.includes('W')?2:5)*T-far,y:(r.y0+2)*T+spread*2};
-  if(dir==='N')return {x:(r.x0+3)*T+spread*2,y:(S.open.includes('N')?2:4)*T-far};return {x:(r.x0+3)*T+spread*2,y:(S.open.includes('S')?10:8)*T+far};}
+// Where an animal steps out of the trees. `along` is its place along that front (0..1 of the wall's
+// length); without one it falls back to the old centre cluster, which the massing shapes still use.
+function spawnPoint(dir,i,along){const r=SECTOR.core;const far=T+20+Math.floor(i/4)*26;
+  const [wx,wy,ww,wh]=wallRect(dir);
+  const pos=along==null?null:(dir==='E'||dir==='W')?wy+wh*along:wx+ww*along;
+  const spread=(i%4-1.5)*22+(Math.random()-0.5)*10;
+  if(dir==='E')return {x:(S.open.includes('E')?14:11)*T+far,y:pos==null?(r.y0+2)*T+spread*2:pos};if(dir==='W')return {x:(S.open.includes('W')?2:5)*T-far,y:pos==null?(r.y0+2)*T+spread*2:pos};
+  if(dir==='N')return {x:pos==null?(r.x0+3)*T+spread*2:pos,y:(S.open.includes('N')?2:4)*T-far};return {x:pos==null?(r.x0+3)*T+spread*2:pos,y:(S.open.includes('S')?10:8)*T+far};}
+// the point on a wall's outer face at a fraction of its length
+function wallAt(dir,along){const [x,y,w,h]=wallRect(dir);if(dir==='E')return {x:x+w+12,y:y+h*along};if(dir==='W')return {x:x-12,y:y+h*along};if(dir==='N')return {x:x+w*along,y:y-12};return {x:x+w*along,y:y+h+12};}
 function wallGoal(dir){const [x,y,w,h]=wallRect(dir);if(dir==='E')return {x:x+w+12,y:y+h/2};if(dir==='W')return {x:x-12,y:y+h/2};if(dir==='N')return {x:x+w/2,y:y-12};return {x:x+w/2,y:y+h+12};}
 function hatcheryPos(){const h=hatch();return h?tileCenter(K(h.x,h.y)):tileCenter(K(7,6));}
 function nearestFoodBuilding(x,y){const list=Object.values(S.tiles).filter(t=>t.done&&FOODBLD[t.type]);if(!list.length)return null;return list.sort((a,b)=>Math.hypot(a.x*T-x,a.y*T-y)-Math.hypot(b.x*T-x,b.y*T-y))[0];}
@@ -1252,7 +1266,9 @@ function updateBattle(dt){
     const EDMG=E.dmg*packMul(e);
     if(e.leapT>0)e.leapT-=dt;
     if(e.blind>0){e.blind-=dt;}
-    if(E.circle){e.laneT+=dt;if(e.laneT>6){e.laneT=0;e.laneOff=(Math.random()-0.5)*90;}}
+    if(E.circle){e.laneT+=dt;if(e.laneT>6){e.laneT=0;const [,,ww,wh]=wallRect(e.dir);const len=(e.dir==='E'||e.dir==='W')?wh:ww;
+      // pick a new place anywhere along the wall, as an offset from its own spot
+      const a0=e.along==null?0.5:e.along;const na=0.07+Math.random()*0.86;e.laneOff=(na-a0)*len;}}
     if(E.skitter){e.jt+=dt;if(e.jt>0.4){e.jt=0;e.jx=(Math.random()-0.5)*26;e.jy=(Math.random()-0.5)*26;}}
     if(e.dotT>0){e.dotT-=dt;e.hp-=e.dot*dt;if(e.hp<=0){kill(e);}}
     if(e.dead)return;
@@ -1263,7 +1279,9 @@ function updateBattle(dt){
     else if(E.sneak&&w.lvl&&w.hp<wallMax(w.lvl)*0.6){e.inside=true;tip('inside',null,true);}
     else if(E.leap&&!e.inside&&w.lvl===1&&!w.broken&&w.hp<wallMax(1)*0.6&&e.atWall){e.inside=true;tip('inside',null,true);e.leapT=0.7;ticker(`A deer cleared the battered ${DIRS[e.dir].toLowerCase()} wall`);floater(e.x,e.y-26,'leapt the wall','#f0b64a');}
     if(!goal){
-      if(!e.inside&&w.lvl&&!w.broken){const g=wallGoal(e.dir);const vert=e.dir==='E'||e.dir==='W';goal={x:g.x+(e.dir==='E'?Math.floor(idx/4)*14:e.dir==='W'?-Math.floor(idx/4)*14:lane+e.laneOff),y:g.y+(vert?lane+e.laneOff:(e.dir==='N'?-1:1)*Math.floor(idx/4)*14)};}
+      if(!e.inside&&w.lvl&&!w.broken){const g=wallAt(e.dir,e.along==null?0.5:e.along);const vert=e.dir==='E'||e.dir==='W';const depth=Math.floor(idx/4)*14;
+        // a prowler's laneOff slides it along the wall; everyone else holds its own spot, stacked a little deeper as the crowd grows
+        goal={x:g.x+(e.dir==='E'?depth:e.dir==='W'?-depth:e.laneOff),y:g.y+(vert?e.laneOff:(e.dir==='N'?-depth:depth))};}
       else if(!e.inside&&w.lvl&&w.broken&&!e.through){const g=gapPoint(e.dir);goal={x:g.x,y:g.y};if(Math.hypot(g.x-e.x,g.y-e.y)<10){e.through=true;e.inside=true;}}
       else{e.inside=true;tip('inside',null,true);if(E.sneak){const fb=nearestFoodBuilding(e.x,e.y);goal=fb?{x:fb.x*T+T/2+lane,y:fb.y*T+T/2+8}:{x:hp0.x+lane,y:hp0.y+10};}else goal={x:hp0.x+lane,y:hp0.y+10};
         // the patrol meets it: anything inside turns on the nearest patrol animal in range (a wrecker on anything posted)
@@ -1685,7 +1703,6 @@ function drawPerson(a,p,work){
   spr(`person_${job}_${p.skin||0}`,x,y,child?1.5:2,frame,a.face<0);}
   if(p.arrived&&S.day-p.arrived<1){const g=ctx.createRadialGradient(x,y,2,x,y,30);g.addColorStop(0,'rgba(255,200,100,.35)');g.addColorStop(1,'rgba(255,200,100,0)');ctx.fillStyle=g;ctx.fillRect(x-30,y-30,60,60);}
   if(work==='hammer'&&!a.moving&&run&&a.t%28===0){ctx.fillStyle='#ffe27a';ctx.fillRect(x+a.face*12,y-10,3,3);}
-  if(work==='stand'&&a.shot&&S.battle&&run){ctx.strokeStyle='rgba(255,226,122,.7)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,y-8);ctx.lineTo(a.shot.x,a.shot.y);ctx.stroke();}
   // the arm he drew from the store, held at his side: the job animation has a spear baked into its
   // frames, so the crafted weapon reads as a small icon beside him rather than a re-rigged hand
   if(a.arm&&S.battle&&GEAR[a.arm]){const side=a.shot&&a.shot.x<x?-1:1;cico(GEAR[a.arm].ico,x+side*9-8,y-26,16);}
