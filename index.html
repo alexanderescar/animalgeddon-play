@@ -544,9 +544,9 @@ const SPECIES={
   toad:{name:'Poison Toad',group:'Amphibian',tier:2,food:'insects',power:2,hp:14,from:'treefrog',ab:'toxic',scale:1.25,wide:1.25,abd:'Toxic skin: anything that bites the toad is poisoned (1 HP a second for 4 s). Bites poison too.'},
   dartfrog:{name:'Poison Dart Frog',group:'Amphibian',tier:3,food:'insects',power:4,hp:10,from:'toad',ab:'poison2',scale:1.2,wide:0.9,abd:'Spits strong poison over the wall: 1.5 HP a second for 4 s, from 2 tiles away.'},
   // birds
-  pigeon:{name:'Pigeon',group:'Bird',tier:1,food:'insects',power:1,hp:4,bird:true,ab:'warn',abd:'Warning: on a wall or tower, spots the herd 2 hours earlier with a head count. Warm-blooded.',get:'One of your five starting eggs, and traders carry clutches of its eggs. Pigeons do not wander in on their own.'},
-  crow:{name:'Crow',group:'Bird',tier:2,food:'insects',power:3,hp:6,bird:true,from:'pigeon',ab:'warn',abd:'Mean and loud: hits three times harder than a pigeon and keeps the early warning. Warm-blooded.'},
-  hawk:{name:'Bald Eagle',group:'Bird',tier:3,food:'rodents',power:5,hp:10,bird:true,from:'crow',ab:'dive',scale:1.2,abd:'Dive: strikes the weakest enemy within 4 tiles. Warm-blooded.'},
+  pigeon:{name:'Pigeon',group:'Bird',tier:1,food:'insects',power:1,hp:4,bird:true,sky:true,sortie:3,ab:'warn',abd:'Warning: in the sky it spots the herd 2 hours earlier with a head count. Flies out to meet the herd in sorties of 3 strikes. Warm-blooded.',get:'One of your five starting eggs, and traders carry clutches of its eggs. Pigeons do not wander in on their own.'},
+  crow:{name:'Crow',group:'Bird',tier:2,food:'insects',power:3,hp:6,bird:true,sky:true,sortie:4,from:'pigeon',ab:'warn',abd:'Mean and loud: hits three times harder than a pigeon and keeps the early warning. Sorties of 4 strikes. Warm-blooded.'},
+  hawk:{name:'Bald Eagle',group:'Bird',tier:3,food:'rodents',power:5,hp:10,bird:true,sky:true,sortie:6,from:'crow',ab:'dive',scale:1.2,abd:'Dive: picks the weakest thing in the field and goes for it. Sorties of 6 strikes. Warm-blooded.'},
   // turtles
   boxturtle:{name:'Box Turtle',group:'Turtle',tier:1,food:'greens',power:2,hp:16,ab:'taunt',abd:'Taunt: enemies that get inside attack the turtle first.',get:'One of the animals you start with. Strays wander in to the fire, and traders carry clutches of its eggs. Scouts can look for its eggs (click the hatchery).'},
   snapping:{name:'Snapping Turtle',group:'Turtle',tier:2,food:'rodents',power:4,hp:22,from:'boxturtle',ab:'snap',abd:'Taunts, and snaps back: anything biting it takes 1 damage a second in return.'},
@@ -916,6 +916,18 @@ const guardsOf=dir=>S.creatures.filter(c=>c.post==='guard'&&c.front===dir);
 // Patrol: the third post. Patrol animals walk the inside of the base and attack anything that gets
 // past the walls.
 const patrols=()=>S.creatures.filter(c=>c.post==='patrol');
+// The third kind of unit. Wall animals hold the wall; patrol animals hold the yard; sky birds leave
+// the walls altogether and meet the herd where it is. Nothing on the ground can touch a bird in the
+// air - only bats - and a bird fights in sorties: a few strikes, then back to the roost to rest.
+const isSky=c=>!!(SPECIES[c.sp]&&SPECIES[c.sp].sky);
+const skies=()=>S.creatures.filter(c=>c.post==='sky');
+const SKY_REST=20;        // seconds on the roost between sorties
+const SKY_DIVE=1.3;       // seconds between strikes: fewer, heavier blows than a bite on the wall
+const SKY_SPEED=3.2;      // px a frame in the air
+// where a sky bird waits: on the bastion rail if there is one, else the pen fence
+function roostPos(c,i){const d=Object.keys(DIRS).find(d=>bastionLvl(d));
+  if(d){const tp=towerPos(d);const vert=d==='E'||d==='W';return {x:tp.x+(vert?0:(i-1)*12),y:tp.y-14+(vert?(i-1)*12:0)};}
+  const pen=builtOf('pen')[0];const c0=pen?tileCenter(K(pen.x,pen.y)):hatcheryPos();return {x:c0.x-24+(i%3)*14,y:c0.y-30+Math.floor(i/3)*10};}
 // Patrol slots used to come from the guard post. The post is gone, and a patrol is an animal
 // thing anyway: 3, plus 2 for each pen level past the first.
 const patrolCap=()=>3+2*Math.max(0,penLvl()-1);
@@ -958,7 +970,7 @@ const attraction=()=>{const f=fire();if(!f)return 0;const prod=production(),cons
 const wallsNeedRepair=()=>Object.entries(S.walls).filter(([d,w])=>w.lvl&&w.hp<wallMax(w.lvl)-0.01).map(([d])=>d);
 const warmAt=(x,y)=>{const f=fire();if(!f)return false;return Math.hypot(f.x*T+T/2-x,f.y*T+T/2-y)<=fireRadius()*T;};
 function coldFactor(c){const a=anim[c.id];if(SPECIES[c.sp].bird||!a)return 1;if(W()==='heat')return 1.25;if(!isWinter())return 1;return warmAt(a.x,a.y)?1:0.5;}
-const earlyEyes=()=>W()!=='fog'&&(S.creatures.some(c=>c.post==='guard'&&c.sp==='pigeon')||anyBastion(2));
+const earlyEyes=()=>W()!=='fog'&&(S.creatures.some(c=>c.post==='sky'&&SPECIES[c.sp].ab==='warn')||anyBastion(2));
 const W=()=>S.weather||'clear';
 const hasPerk=id=>!!(S.perks&&S.perks.includes(id));
 const wallMax=lvl=>lvl?WALL_LVL[lvl].hp+(hasPerk('thickskin')?10:0):0;
@@ -1130,6 +1142,7 @@ const TIPS={
   pair_ready:{t:'Two of a line in the pen',b:(g)=>`You have two animals of the ${g} line resting in the pen. They do not breed on their own: click the <b>pen</b> and put them in a nest, and they lay an egg every ${layEvery()} nights in spring and summer.`},
   hatched:{t:'An egg hatched',b:(sp)=>`A ${SPECIES[sp].name.toLowerCase()} hatched and went to the pen. Keepers at the hatchery add a keeper-day to an egg each night; at ${eggNeed()} it hatches, if the pen has room. Hatchlings are the same species as the egg: the stronger forms come from research and the Grow button on an animal's card.`,go:['Open Animals','animals']},
   relic:{t:'Something from before',b:'Your scouts turn up the odd thing out in the forest that is no use to anybody: a photograph, a toy, a sign pointing at a town that is not there any more. They are worth nothing and they do not do anything. They go on the shelf in SUPPLIES.',go:['Open Supplies','supply']},
+  sky:{t:'Birds take the sky',b:'Pigeons, crows and eagles are not wall animals. Post one to the <b>Sky</b> and it roosts on the bastion (or the pen fence) until a horde is called, then flies out beyond the walls to meet the herd where it is and strikes from the air. Nothing on the ground can touch it; only bats can. It fights in <b>sorties</b> - a few strikes, then back to the roost to rest - so more birds means more pressure in the air. A pigeon or crow in the sky still gives the two-hour early warning.',go:['Open Animals','animals']},
   pen_full:{t:'The pen is full',b:()=>`Every animal resting in the pen takes a slot (${penCap()} right now), and eggs waiting at the hatchery count too. While it is full no nest lays and nothing hatches. Post animals to a wall or patrol (they do not use pen slots there), or upgrade the pen.`,go:['Open Animals','animals']},
   arrived:{t:'A survivor arrived',b:(txt)=>`${txt} walked in from the forest, drawn by the signal fire. New arrivals start as builders: drag them onto a job in PEOPLE. Survivors only stay while there is a free bed, so a bigger shelter means more hands.`,go:['Open People','people']},
   born:{t:'A child was born',b:(name)=>`${name} was born. Children need a bed and grow up in ${ADULT_DAYS} days, then take a job. Births need two adults, morale 7 or more and a free bed.`,go:['Open People','people']},
@@ -1274,7 +1287,10 @@ function updateBattle(dt){
     if(e.dead)return;
     const lane=(idx%4-1.5)*18;
     let goal;
-    if(E.fly){e.inside=true;const prey=guardAnimals.filter(c=>anim[c.id]).sort((a,b)=>(SPECIES[b.sp].bird?1:0)-(SPECIES[a.sp].bird?1:0)||Math.hypot(anim[a.id].x-e.x,anim[a.id].y-e.y)-Math.hypot(anim[b.id].x-e.x,anim[b.id].y-e.y))[0];
+    if(E.fly){e.inside=true;
+      // a bat goes for whatever is in the air first - the only thing in the game that can - then the wall
+      const air=skies().filter(c=>anim[c.id]&&c.rest<=0);const pool=air.length?air:guardAnimals.filter(c=>anim[c.id]);
+      const prey=pool.sort((a,b)=>Math.hypot(anim[a.id].x-e.x,anim[a.id].y-e.y)-Math.hypot(anim[b.id].x-e.x,anim[b.id].y-e.y))[0];
       goal=prey?{x:anim[prey.id].x,y:anim[prey.id].y-6}:{x:hp0.x+lane,y:hp0.y+10};}
     else if(E.sneak&&w.lvl&&w.hp<wallMax(w.lvl)*0.6){e.inside=true;tip('inside',null,true);}
     else if(E.leap&&!e.inside&&w.lvl===1&&!w.broken&&w.hp<wallMax(1)*0.6&&e.atWall){e.inside=true;tip('inside',null,true);e.leapT=0.7;ticker(`A deer cleared the battered ${DIRS[e.dir].toLowerCase()} wall`);floater(e.x,e.y-26,'leapt the wall','#f0b64a');}
@@ -1289,7 +1305,7 @@ function updateBattle(dt){
       if(E.skitter){goal.x+=e.jx;goal.y+=e.jy;}
     }
     let target=null,td=26;
-    if(!E.sneak&&(e.inside||!w.lvl)){guardAnimals.concat(e.inside?patrolAnimals:[]).forEach(c=>{const a=anim[c.id];if(!a)return;const d=Math.hypot(a.x-e.x,a.y-e.y);const taunt=TAUNTS.has(SPECIES[c.sp].ab)&&d<48;
+    if(!E.sneak&&(e.inside||!w.lvl)){guardAnimals.concat(e.inside?patrolAnimals:[]).concat(E.fly?skies().filter(c=>c.rest<=0):[]).forEach(c=>{const a=anim[c.id];if(!a)return;const d=Math.hypot(a.x-e.x,a.y-e.y);const taunt=TAUNTS.has(SPECIES[c.sp].ab)&&d<48;
       if(taunt&&!(target&&TAUNTS.has(SPECIES[target.sp].ab))){target=c;td=d;}else if(!taunt&&d<td&&!(target&&TAUNTS.has(SPECIES[target.sp].ab))){td=d;target=c;}});}
     const dx=goal.x-e.x,dy=goal.y-e.y,d=Math.hypot(dx,dy);
     const canAct=e.blind<=0&&!(e.heldT>0);if(e.heldT>0)e.heldT-=dt;
@@ -1316,11 +1332,27 @@ function updateBattle(dt){
     if(e.inside&&!E.sneak&&Math.hypot(e.x-hp0.x,e.y-hp0.y)<30){e.dead=true;breach(e);}
   });
   if(!S.battle)return;
+  // Sky birds. A sortie is a handful of strikes; then the bird goes home to rest. A strike is a
+  // dive on the circled target, heavier and rarer than a bite on the wall but the same damage a
+  // second: cpower x SKY_DIVE every SKY_DIVE seconds. Nothing on the ground answers it. A bat can.
+  skies().forEach(c=>{const a=anim[c.id];if(!a)return;const s=SPECIES[c.sp];
+    if(c.sortie==null)c.sortie=s.sortie||3;
+    if(c.rest>0){c.rest-=dt;if(c.rest<=0){c.rest=0;c.sortie=s.sortie||3;c.skyT=null;}return;}
+    if(c.sortie<=0){const r=roostPos(c,skies().indexOf(c));if(Math.hypot(a.x-r.x,a.y-r.y)<14){c.rest=SKY_REST;}return;}
+    c.cd=Math.max(0,(c.cd||0)-dt);if(c.cd>0)return;
+    const t=B.enemies.find(e=>e.id===c.skyT&&!e.dead&&!e.dying&&!e.playing);if(!t)return;
+    if(Math.hypot(a.x-t.x,a.y-t.y)>22)return;
+    const dmg=cpower(c)*SKY_DIVE*(hasPerk('sharpteeth')?1.2:1);
+    hitEnemy(t,dmg);c.cd=SKY_DIVE;c.sortie--;a.swoop=0.3;sfx('bite');
+    {const fd=Math.hypot(t.x-a.x,t.y-a.y)||1;t.flinch=0.16;t.fx=(t.x-a.x)/fd;t.fy=(t.y-a.y)/fd;}
+    puff(t.x,t.y-6,'#ffd479',3,28);particles.push({x:a.x,y:a.y-14,vx:(t.x-a.x)*3,vy:(t.y-a.y+14)*3,t:0,life:0.3,col:'#f0b64a'});
+    if(t.hp<=0){c.kills=(c.kills||0)+1;kill(t,cname(c));c.skyT=null;
+      if(hasR('veterans')&&(c.kills===8||c.kills===20)){ticker(`${cname(c)} is blooded: +${c.kills===20?2:1} power, here and now`,2);floater(a.x,a.y-30,'BLOODED','#ffd479');sfx('done');}}});
   guardAnimals.concat(patrolAnimals).forEach(c=>{const a=anim[c.id];if(!a)return;const s=SPECIES[c.sp];c.cd=Math.max(0,(c.cd||0)-dt);if(a.bite>0)a.bite=Math.max(0,a.bite-dt);if(c.stun>0){c.stun-=dt;return;}
-    const reach=s.ab==='dive'?4*T:(s.ab==='blind'||s.ab==='poison2')?2*T:40;
+    const reach=(s.ab==='blind'||s.ab==='poison2')?2*T:40;
     const cands=c.post==='patrol'?B.enemies.filter(e=>!e.dead&&!e.playing&&!e.dying&&e.inside&&Math.hypot(a.x-e.x,a.y-e.y)<44):B.enemies.filter(e=>!e.dead&&!e.playing&&!e.dying&&((e.atWall&&e.dir===c.front&&Math.abs(ALONG(c.front,e)-ALONG(c.front,a))<BITE_ALONG)||Math.hypot(a.x-e.x,a.y-e.y)<reach));
     if(!cands.length)return;
-    const target=s.ab==='dive'?cands.sort((u,v)=>u.hp-v.hp)[0]:cands.sort((u,v)=>Math.hypot(a.x-u.x,a.y-u.y)-Math.hypot(a.x-v.x,a.y-v.y))[0];
+    const target=cands.sort((u,v)=>Math.hypot(a.x-u.x,a.y-u.y)-Math.hypot(a.x-v.x,a.y-v.y))[0];
     let rate=cpower(c)*((s.ab==='quick'||s.ab==='spur')?1.5:1)*coldFactor(c)*(hasPerk('sharpteeth')?1.2:1);
     if(s.ab==='trample'&&c.cd<=0&&ENEMY[target.type].cost<=3){c.cd=3;const ang=Math.atan2(target.y-a.y,target.x-a.x);target.x+=Math.cos(ang)*26;target.y+=Math.sin(ang)*26;target.heldT=1;floater(target.x,target.y-22,'trampled','#f0b64a');puff(target.x,target.y,'#c9b58a',6,40);}
     if(s.ab==='kick'&&c.cd<=0){c.cd=4;hitEnemy(target,cpower(c)*3);target.heldT=1;floater(target.x,target.y-22,'KICK','#ff6b5c');shake=Math.max(shake,3);sfx('crack');if(target.hp<=0)kill(target,cname(c));}    // Crush banks its extra straight into the blow it belongs to, which is exactly the damage the
@@ -1334,7 +1366,6 @@ function updateBattle(dt){
       puff(target.x,target.y-6,'#ffd479',3,28);
       if(c.crunch){c.crunch=false;floater(target.x,target.y-22,'CRUNCH','#ff6b5c');shake=Math.max(shake,2);}}
 
-    if(s.ab==='dive'&&Math.random()<dt*2)particles.push({x:a.x,y:a.y,vx:(target.x-a.x)*3,vy:(target.y-a.y)*3,t:0,life:0.3,col:'#f0b64a'});
     if(s.ab==='poison'||s.ab==='poison2'||s.ab==='toxic'){target.dot=Math.max(target.dot,s.ab==='poison'?0.5:s.ab==='toxic'?1:1.5);target.dotT=4;if(s.ab==='poison2'&&Math.random()<dt*2)particles.push({x:a.x,y:a.y,vx:(target.x-a.x)*4,vy:(target.y-a.y)*4,t:0,life:0.25,col:'#5bc0ff'});}
     if(s.ab==='bleed'){target.dot=Math.max(target.dot,1.5);target.dotT=Math.max(target.dotT,4);}
     if(s.ab==='constrict'){target.heldT=0.3;if(!target.held){target.held=true;floater(target.x,target.y-22,'constricted','#c58cff');}}
@@ -1413,7 +1444,10 @@ function upgradeSpecies(sp,id){
 function research(id){const r=RESEARCH.find(x=>x.id===id);const prev=techPrev(id);if(hasR(id)||S.res.research<r.cost||(prev&&!hasR(prev)))return;
   S.res.research-=r.cost;S.done.push(id);log(`Research complete: ${r.name}.`,'g');{const to=Object.keys(SPECIES).find(k=>SPR[k]===id&&SPECIES[k].from&&S.creatures.some(c=>c.sp===SPECIES[k].from));if(to)tip('grow',to);}sfx('done');checkMilestones();save();render();}
 function postCreature(id,where){const c=S.creatures.find(c=>c.id===id);if(!c)return false;
-  if(where==='patrol'){if(c.post!=='patrol'&&patrols().length>=patrolCap()){log(`The patrol is full (${patrolCap()} slots: 3, plus 2 for every pen level past the first. Upgrade the pen for more).`,'e');floater(hatcheryPos().x,hatcheryPos().y-30,'patrol full','#ff6b5c');return false;}c.post='patrol';}
+  // a flier is never a wall or patrol animal; a wall or patrol animal is never a flier
+  if(isSky(c)&&where!=='pen'&&where!=='sky')where='sky';
+  if(where==='sky'){if(!isSky(c)){log(`${cname(c)} cannot fly. Only pigeons, crows and eagles take the sky.`,'e');return false;}c.post='sky';c.front=null;tip('sky');}
+  else if(where==='patrol'){if(c.post!=='patrol'&&patrols().length>=patrolCap()){log(`The patrol is full (${patrolCap()} slots: 3, plus 2 for every pen level past the first. Upgrade the pen for more).`,'e');floater(hatcheryPos().x,hatcheryPos().y-30,'patrol full','#ff6b5c');return false;}c.post='patrol';}
   else if(where==='pen'){if(c.post!=='pen'&&penFull()){log(`The pen is full (${penCap()} slots). Upgrade it or build another.`,'e');floater(hatcheryPos().x,hatcheryPos().y-30,'pen full','#ff6b5c');return false;}c.post='pen';}
   else{if(!fronts().includes(where))return false;if(guardsOf(where).length>=wallSlots(where)&&!(c.post==='guard'&&c.front===where)){log(`The ${DIRS[where].toLowerCase()} wall has no room (${wallSlots(where)} slots; upgrade the wall for more).`,'e');floater(wallGoal(where).x,wallGoal(where).y-30,'wall full','#ff6b5c');return false;}c.post='guard';c.front=where;}
   pruneNests();sfx('click');save();render();return true;}
@@ -1461,7 +1495,9 @@ cv.addEventListener('pointermove',ev=>{const p=canvasPos(ev);mouseP=p;hoverTile=
   if(drag){drag.pos=p;if(Math.hypot(p.x-drag.start.x,p.y-drag.start.y)>6)drag.moved=true;if(drag.moved&&drag.creature)cv.style.cursor='grabbing';}
   updateTip();});
 cv.addEventListener('pointerup',ev=>{if(roadDrag){roadDrag=null;save();renderHud();return;}if(!drag)return;const d=drag;drag=null;cv.style.cursor='pointer';const p=canvasPos(ev);
-  if(d.moved&&d.creature){const f=frontAt(p);if(f)postCreature(d.creature.id,f);else if(penAt(p))postCreature(d.creature.id,'pen');else if(postAt(p))postCreature(d.creature.id,'patrol');else floater(p.x,p.y-10,'drop on a wall, the pen, or open ground inside (patrol)','#f0b64a');return;}
+  if(d.moved&&d.creature){const c=d.creature;
+    if(isSky(c)){if(penAt(p))postCreature(c.id,'pen');else{postCreature(c.id,'sky');floater(p.x,p.y-10,'to the sky','#f0b64a');}return;}
+    const f=frontAt(p);if(f)postCreature(c.id,f);else if(penAt(p))postCreature(c.id,'pen');else if(postAt(p))postCreature(c.id,'patrol');else floater(p.x,p.y-10,'drop on a wall, the pen, or open ground inside (patrol)','#f0b64a');return;}
   if(d.moved)return;
   const t=tileFromPos(p);if(!t)return;const tl=tileAt(t.x,t.y);
   const f=frontAt(p);if(f&&!tl&&!buildSel&&!d.creature){sel=null;openTab('wall',f);return render();}
@@ -1608,6 +1644,19 @@ function targetFor(p){
 }
 function creatureTarget(c){
   if(drag&&drag.moved&&drag.creature===c)return {x:drag.pos.x,y:drag.pos.y};
+  if(c.post==='sky'){const list=skies();const i=list.indexOf(c);const B=S.battle;const a=anim[c.id];
+    const roost=roostPos(c,i);
+    if(!B||!a||c.rest>0||(c.sortie!=null&&c.sortie<=0))return Object.assign(roost,{fly:true,roost:true});
+    // pick something to go for and keep it until it is dead: the eagle takes the weakest thing in
+    // the field, the others whatever is nearest to them
+    const live=B.enemies.filter(e=>!e.dead&&!e.dying&&!e.playing);
+    let t=live.find(e=>e.id===c.skyT);
+    if(!t&&live.length){t=SPECIES[c.sp].ab==='dive'?live.slice().sort((u,v)=>u.hp-v.hp)[0]:live.slice().sort((u,v)=>Math.hypot(a.x-u.x,a.y-u.y)-Math.hypot(a.x-v.x,a.y-v.y))[0];c.skyT=t.id;}
+    if(!t)return Object.assign(roost,{fly:true,roost:true});
+    // circle it: a point on a ring around the target that advances with time, so the bird wheels
+    // rather than hovers; it dives in when the strike clock says so (see the sky loop)
+    const ang=(a.t/18)+i*2.1;const r=c.cd>0.35?26:6;
+    return {x:t.x+Math.cos(ang)*r,y:t.y-8+Math.sin(ang)*r*0.6,fly:true,target:t};}
   if(c.post==='guard'){const list=guardsOf(c.front);const i=list.indexOf(c);const B=S.battle;
     if(B&&S.walls[c.front].broken){const g=gapPoint(c.front);const o=slotOffset(i);return {x:g.x+o[0]*1.2,y:g.y+o[1]*1.2};}
     if(B){const a=anim[c.id];const live=B.enemies.filter(e=>e.inside&&!e.playing&&!e.dying&&!ENEMY[e.type].sneak);if(live.length&&a&&(!S.walls[c.front].lvl||live.some(e=>ENEMY[e.type].fly))){const t=live.sort((u,v)=>Math.hypot(u.x-a.x,u.y-a.y)-Math.hypot(v.x-a.x,v.y-a.y))[0];return {x:t.x-(t.x>a.x?18:-18),y:t.y};}
@@ -1855,7 +1904,9 @@ function draw(ts){
   S.creatures.forEach(c=>{const tg=creatureTarget(c);const a=ensureAnim(c.id,tg.x,tg.y);const dragging=drag&&drag.moved&&drag.creature===c;
     // a patroller on its loop walks at exactly the loop's pace, so it neither overtakes its lead point nor falls behind it
     const onLoop=c.post==='patrol'&&a.pace&&!(S.battle&&S.battle.enemies.some(e=>e.inside&&!e.dead));
-    if(dragging){a.x=tg.x;a.y=tg.y;a.moving=false;}else if(running||!a.init){const px=a.x,py=a.y;moveTo(a,tg,onLoop?a.pace:1.0+SPECIES[c.sp].power*0.1,false,onLoop);a.init=true;a.dx=a.x-px;a.dy=a.y-py;}
+    if(dragging){a.x=tg.x;a.y=tg.y;a.moving=false;}else if(running||!a.init){const px=a.x,py=a.y;
+      if(tg&&tg.fly)stepAnim(a,tg,SKY_SPEED);else moveTo(a,tg,onLoop?a.pace:1.0+SPECIES[c.sp].power*0.1,false,onLoop);
+      a.init=true;a.dx=a.x-px;a.dy=a.y-py;}
     let row='idle';const night=S.hour>=22||S.hour<6;
     if(c.post==='guard'&&!a.moving&&!dragging){if(c.front==='E')a.face=1;else if(c.front==='W')a.face=-1;}   // posted and standing: look out over the wall
     if(dragging)row='scared';else if(a.moving)row=Math.abs(a.dy)>Math.abs(a.dx)*1.4?(a.dy>0?'down':'up'):'walk';else if(a.bite)row='angry';else if(c.post==='guard'&&(c.front==='N'||c.front==='S'))row=c.front==='N'?'up':'down';
@@ -1865,8 +1916,15 @@ function draw(ts){
     // instant a blow lands and decays, so the sprite snaps forward on contact and pulls back.
     const lunge=running&&a.bite>0?Math.pow(a.bite/0.22,1.4)*8*a.face:0;
     if(a.flinch>0)a.flinch-=dtReal;const cfl=a.flinch>0?(a.flinch/0.16)*3:0;
+    // in the air: lifted off the ground with a shadow under it; a strike is a dip toward the target
+    const flying=c.post==='sky'&&tg&&tg.fly&&!(tg.roost&&!a.moving);
+    if(a.swoop>0)a.swoop-=dtReal;
+    const lift=flying?18-(a.swoop>0?Math.sin((a.swoop/0.3)*Math.PI)*14:0)+Math.sin(a.t/9)*2:0;
+    if(flying){row=a.swoop>0?'angry':'walk';}
     const flip=row!=='down'&&row!=='up'&&a.face>0;
-    DQ.push({y:a.y+26+(dragging?400:0),fn:()=>{if(!aspr(c.sp,row,frame,a.x+lunge+cfl*(a.fx||0),a.y+8-(dragging?10:0)+cfl*(a.fy||0),flip,1.5*(SPECIES[c.sp].scale||1),1,SPECIES[c.sp].wide||1)){ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(Math.round(a.x)-10,Math.round(a.y)+8,20,3);spr(c.sp,a.x+lunge,a.y-(dragging?8:0),2,frame%2,a.face<0);}
+    DQ.push({y:a.y+26+(dragging?400:0)+(flying?300:0),fn:()=>{
+      if(flying){ctx.fillStyle='rgba(0,0,0,.28)';ctx.beginPath();ctx.ellipse(Math.round(a.x),Math.round(a.y)+10,9,3.5,0,0,Math.PI*2);ctx.fill();}
+      if(!aspr(c.sp,row,frame,a.x+lunge+cfl*(a.fx||0),a.y+8-(dragging?10:0)+cfl*(a.fy||0)-lift,flip,1.5*(SPECIES[c.sp].scale||1),1,SPECIES[c.sp].wide||1)){ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(Math.round(a.x)-10,Math.round(a.y)+8,20,3);spr(c.sp,a.x+lunge,a.y-(dragging?8:0),2,frame%2,a.face<0);}
     if(c.post==='guard'&&coldFactor(c)<1){ctx.fillStyle='#7ad0e0';ctx.font='10px monospace';ctx.textAlign='center';ctx.fillText('❄',Math.round(a.x)+14,Math.round(a.y)-18);}
     if(c.hunger>0&&!dragging){const bx=Math.round(a.x)+16,by=Math.round(a.y)-34+Math.round(Math.sin(a.t/20)*1.5);ctx.fillStyle='rgba(250,244,228,.95)';ctx.beginPath();ctx.roundRect(bx-11,by-11,22,22,5);ctx.fill();ctx.beginPath();ctx.moveTo(bx-6,by+10);ctx.lineTo(bx-2,by+15);ctx.lineTo(bx+1,by+10);ctx.fill();const f=SPECIES[c.sp].food;if(f==='rodents'){ctx.save();ctx.translate(bx,by);ctx.scale(0.5,0.5);aspr('mouse','idle',0,0,8,false,1);ctx.restore();}else cico(f,bx,by,16);if(c.hunger>=2){ctx.fillStyle='#d8382a';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText(String(c.hunger),bx+9,by-6);}}
     hpBar(Math.round(a.x),Math.round(a.y)-26,c.hp,c.maxhp);}});
@@ -2129,15 +2187,16 @@ function renderDrawer(){
   }
   if(tab==='animals'||tab==='animal'){
     const fr=fronts();
-    const whereOf=c=>c.post==='pen'?ico('pen',1)+' pen':c.post==='patrol'?ico('spd',1)+' patrol':ico('wall',1)+' '+DIRS[c.front].toLowerCase()+' wall';
+    const whereOf=c=>c.post==='pen'?ico('pen',1)+' pen':c.post==='patrol'?ico('spd',1)+' patrol':c.post==='sky'?ico('ab_fly',1)+' sky'+(c.rest>0?' (resting)':''):ico('wall',1)+' '+DIRS[c.front].toLowerCase()+' wall';
     const foodIco=f=>f==='rodents'?aico('mouse',22):ico(f,1);
     const growTo=sp=>Object.keys(SPECIES).find(k=>SPECIES[k].from===sp);
     const growCost=to=>{const uc=SPECIES[to].tier===3?{scrap:6,bone:2}:{scrap:3};uc[SPECIES[to].food]=(uc[SPECIES[to].food]||0)+(SPECIES[to].tier===3?4:2);return uc;};
     const goTile=type=>{const t=builtOf(type)[0];if(!t)return;sel=K(t.x,t.y);openTab('tile');render();};
     // the buttons that move one animal: each wall front, the patrol, the pen; greyed with the reason when full
     const moveRow=c=>{const r=el('div','row');
-      fr.forEach(f=>{const here=c.post==='guard'&&c.front===f;const full=guardsOf(f).length>=wallSlots(f);const b=btn(`${ico('wall',1)} ${DIRS[f]} wall`,here?'posted here':full?`full ${guardsOf(f).length}/${wallSlots(f)}`:`${guardsOf(f).length}/${wallSlots(f)} · bites over the wall`,()=>postCreature(c.id,f),'sm'+(here?' sel':''));b.disabled=here||full;r.appendChild(b);});
-      {const here=c.post==='patrol';const full=patrols().length>=patrolCap();const b=btn(`${ico('spd',1)} Patrol`,here?'on patrol':full?`full ${patrols().length}/${patrolCap()}`:`${patrols().length}/${patrolCap()} · catches what gets inside`,()=>postCreature(c.id,'patrol'),'sm'+(here?' sel':''));b.disabled=here||full;r.appendChild(b);}
+      if(isSky(c)){const here=c.post==='sky';const b=btn(`${ico('ab_fly',1)} Sky`,here?'in the air: meets the herd beyond the walls':'flies out to meet the herd in sorties; only bats can reach it',()=>postCreature(c.id,'sky'),'sm'+(here?' sel':''));b.disabled=here;r.appendChild(b);}
+      if(!isSky(c))fr.forEach(f=>{const here=c.post==='guard'&&c.front===f;const full=guardsOf(f).length>=wallSlots(f);const b=btn(`${ico('wall',1)} ${DIRS[f]} wall`,here?'posted here':full?`full ${guardsOf(f).length}/${wallSlots(f)}`:`${guardsOf(f).length}/${wallSlots(f)} · bites over the wall`,()=>postCreature(c.id,f),'sm'+(here?' sel':''));b.disabled=here||full;r.appendChild(b);});
+      if(!isSky(c)){const here=c.post==='patrol';const full=patrols().length>=patrolCap();const b=btn(`${ico('spd',1)} Patrol`,here?'on patrol':full?`full ${patrols().length}/${patrolCap()}`:`${patrols().length}/${patrolCap()} · catches what gets inside`,()=>postCreature(c.id,'patrol'),'sm'+(here?' sel':''));b.disabled=here||full;r.appendChild(b);}
       {const here=c.post==='pen';const full=penFull();const b=btn(`${ico('pen',1)} Pen`,here?'resting here':full?`full ${penned()}/${penCap()}`:`${penned()}/${penCap()} · heals, and breeds from a nest`,()=>postCreature(c.id,'pen'),'sm'+(here?' sel':''));b.disabled=here||full;r.appendChild(b);}
       return r;};
     // why an animal is hungry and what fixes it
@@ -2483,12 +2542,14 @@ if(savedGame){const g=savedGame;g.bastions=g.bastions||{};
   if(g.towers){for(const d in g.towers)if(g.towers[d])g.bastions[d]=Math.max(g.bastions[d]||0,2);delete g.towers;}
   const posts=Object.keys(g.tiles||{}).filter(k=>g.tiles[k]&&g.tiles[k].type==='guardpost');
   if(posts.length){posts.forEach(k=>delete g.tiles[k]);const d=Object.keys(g.walls||{}).find(d=>g.walls[d]&&g.walls[d].lvl);if(d)g.bastions[d]=Math.max(g.bastions[d]||0,1);}
-  if(g.queue)g.queue=g.queue.filter(q=>!(q.kind==='tile'&&g.tiles[q.key]==null)&&q.kind!=='tower');}
+  if(g.queue)g.queue=g.queue.filter(q=>!(q.kind==='tile'&&g.tiles[q.key]==null)&&q.kind!=='tower');
+  // birds are sky-only now: any pigeon, crow or eagle on a wall or the patrol takes to the air
+  (g.creatures||[]).forEach(c=>{const sp=SPECIES[c.sp];if(sp&&sp.sky&&c.post!=='pen'){c.post='sky';c.front=null;}});}
 loadCfg();
 if(savedGame){S=migrate(savedGame);render();showOpening();}
 else{showOpening();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
-window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,bastionCrew,bastionLvl,bastionSlots,BASTION,queueExtra,coldFactor,wallMax,patrolCap,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
+window.__AG={get S(){return S},get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,bastionCrew,bastionLvl,bastionSlots,BASTION,queueExtra,coldFactor,wallMax,patrolCap,isSky,skies,roostPos,earlyEyes,guardsOf,SPECIES,addCreature,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
 })();
 </script>
