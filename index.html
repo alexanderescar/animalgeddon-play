@@ -74,11 +74,29 @@ canvas#map{image-rendering:pixelated;display:block;max-width:100%;max-height:100
    logo, so the title screen keeps showing it instead of drawing a second wordmark underneath.
    It sits above the canvas and below the mode card. */
 .titlebg{position:absolute;inset:0;z-index:1;background:#0a0d08}
-/* The frame is held in the upper panel only. Cropping it there puts the film's logo clear of the
-   mode card below and takes the film's own "PRESS START" line off the bottom of the crop, which
-   matters because the game offers four modes rather than one start. */
-.titlebg i{position:absolute;left:0;right:0;top:0;height:64%;background:url(assets/title-bg.jpg) center 52% / cover no-repeat}
-.titlebg i::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(8,10,6,0) 58%,rgba(8,10,6,.72) 86%,#0a0d08 100%)}
+/* The backdrop is the film's last frame: the wall at night, torches lit, the herd at the gate. On
+   the start screen it fills the window under a big wordmark; behind the mode picker the same
+   frame is held in the upper panel with the wordmark small along the top, so the cut from one to
+   the other moves nothing but the type. */
+.titlebg i{position:absolute;left:0;right:0;top:0;height:64%;background:url(assets/title-bg.jpg) center 40% / cover no-repeat;transition:height .4s}
+.titlebg i::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(8,10,6,.78),rgba(8,10,6,0) 34%),linear-gradient(to bottom,rgba(8,10,6,0) 58%,rgba(8,10,6,.72) 86%,#0a0d08 100%)}
+.titlebg.start i{height:100%}
+.titlebg.start i::after{background:radial-gradient(ellipse at 50% 38%,rgba(0,0,0,0) 30%,rgba(0,0,0,.55) 75%,rgba(0,0,0,.9) 100%),linear-gradient(to bottom,rgba(0,0,0,.55),rgba(0,0,0,.05) 30%,rgba(0,0,0,.1) 60%,rgba(0,0,0,.85))}
+/* torchlight: a warm wash that breathes, so the still frame does not read as a still */
+.titlebg i::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 12% 30%,rgba(255,150,50,.22),rgba(255,150,50,0) 28%),radial-gradient(ellipse at 56% 22%,rgba(255,150,50,.16),rgba(255,150,50,0) 22%);animation:torch 2.3s ease-in-out infinite alternate;z-index:1}
+@keyframes torch{0%{opacity:.55}35%{opacity:1}60%{opacity:.7}100%{opacity:.95}}
+.titlebg canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+.wordmark{position:absolute;left:0;right:0;top:3%;text-align:center;font-family:'Press Start 2P',monospace;font-size:clamp(14px,2.2vw,30px);letter-spacing:3px;color:#f3e4b8;margin:0;z-index:3;pointer-events:none;
+  text-shadow:0 0 14px rgba(255,150,40,.5),4px 4px 0 #1a0d05,-2px -2px 0 #1a0d05,2px -2px 0 #1a0d05,-2px 2px 0 #1a0d05;transition:top .4s,font-size .4s}
+.wordmark span{color:#7fe06a;text-shadow:0 0 14px rgba(90,255,80,.55),4px 4px 0 #0a1a05,-2px -2px 0 #0a1a05,2px -2px 0 #0a1a05,-2px 2px 0 #0a1a05}
+.wordmark small{display:block;font-family:var(--body);font-size:clamp(11px,1.1vw,16px);letter-spacing:2px;color:#e8c98a;margin-top:14px;text-shadow:2px 2px 0 #000;opacity:0;transition:opacity .4s}
+.titlebg.start .wordmark{top:32%;font-size:clamp(28px,5vw,76px);letter-spacing:4px;text-shadow:0 0 18px rgba(255,150,40,.55),6px 6px 0 #1a0d05,-3px -3px 0 #1a0d05,3px -3px 0 #1a0d05,-3px 3px 0 #1a0d05,0 0 60px rgba(255,120,20,.5)}
+.titlebg.start .wordmark span{text-shadow:0 0 18px rgba(90,255,80,.6),6px 6px 0 #0a1a05,-3px -3px 0 #0a1a05,3px -3px 0 #0a1a05,-3px 3px 0 #0a1a05}
+.titlebg.start .wordmark small{opacity:.9}
+.pressany{position:absolute;left:0;right:0;bottom:14%;text-align:center;font-family:'Press Start 2P',monospace;font-size:clamp(12px,1.5vw,22px);letter-spacing:3px;color:#fff3d6;text-shadow:3px 3px 0 #000,0 0 14px rgba(255,200,120,.5);z-index:3;animation:pressBlink 1.4s steps(1) infinite;cursor:pointer}
+.titlebg:not(.start) .pressany{display:none}
+@keyframes pressBlink{0%,60%{opacity:1}61%,100%{opacity:.15}}
+.titlebg.start{cursor:pointer;position:fixed;z-index:80}
 /* On the title screen the card is a wide, short bar along the bottom, so the film's logo in the
    backdrop above it is the wordmark and nothing covers it. */
 .modal.titlemode .box.wide{max-width:1180px;width:100%;padding:12px 16px 10px;max-height:52vh;overflow-y:auto}
@@ -211,7 +229,7 @@ details{color:var(--ink-dim)} summary{cursor:pointer;color:var(--ink)} details u
       <div class="tip" id="tip"></div>
       <div class="advisor" id="advisor"></div>
       <div class="tut" id="tut" hidden></div>
-      <div class="titlebg" id="titlebg" hidden><i></i></div>
+      <div class="titlebg" id="titlebg" hidden><i></i><canvas id="embers"></canvas><h1 class="wordmark">ANIMAL<span>GEDDON</span><small>THE MAMMALS TURNED. HOLD THE WALL.</small></h1><div class="pressany">PRESS ANY KEY TO START</div></div>
       <div class="modal" id="modal" hidden></div>
     </div>
     <aside class="drawer" id="drawer" hidden>
@@ -768,7 +786,7 @@ function musicMaster(){const a=ac();if(!a)return null;if(!mus.master){mus.master
 // muted and the song comes from the audio engine, so the loop is driven by a clean .ogg rather
 // than by whatever is muxed into the MP4 — set useVideoAudio if the film's own track should be
 // used instead, in which case the loop can only start when the film ends.
-const OPENING={src:'assets/opening.mp4',track:'opening1',useVideoAudio:false};
+const OPENING={src:'assets/opening.mp4',track:'opening1',useVideoAudio:true};   // the film carries its own song; the menu theme starts when it ends
 function loadTrack(id){if(mus.loads[id])return mus.loads[id];mus.loads[id]=(async()=>{try{const r=await fetch(TRACKS[id].f);if(!r.ok)throw 0;const ab=await r.arrayBuffer();mus.bufs[id]=await AC.decodeAudioData(ab);}catch(e){mus.bufs[id]=false;}return mus.bufs[id];})();return mus.loads[id];}
 function mnote(ch,entry,t,stepLen){const a=AC;const note=Array.isArray(entry)?entry[0]:entry;const len=(Array.isArray(entry)?entry[1]:1)*stepLen*0.9;
   if(ch.w==='hat'){const n=a.createBufferSource();const b=a.createBuffer(1,a.sampleRate*0.03,a.sampleRate);const d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length);n.buffer=b;const g=a.createGain();g.gain.value=ch.v;const f=a.createBiquadFilter();f.type='highpass';f.frequency.value=6000;n.connect(f);f.connect(g);g.connect(mus.gain);n.start(t);return;}
@@ -827,6 +845,7 @@ function updateMusic(){if(!AC)return;musicMaster();if(document.hidden){playMusic
   // the half-minute of title screen that follows, and then the menu theme, which is written to
   // loop, takes over for as long as the player sits there. In-game menus use the menu theme too.
   if(mus.ended===OPENING.track)mus.openingDone=true;
+  if(uiModal==='start'||(uiModal==='opening'&&OPENING.useVideoAudio)){playMusic(null);return;}
   const titleish=!S||uiModal==='title'||uiModal==='opening';
   const want=titleish?(mus.openingDone?'menu':OPENING.track):uiModal?'menu':S.over?'lose':(S.battle&&S.battle.kind!=='prowl')?'horde':S.playWin?'win':night?'night':'day';
   if(want==='lose'&&mus.ended==='lose'&&mus.id===null)return;
@@ -2355,9 +2374,10 @@ function renderDrawer(){
   }
   body.scrollTop=scroll;renderBar();
 }
-function showOpening(){
-  // Browsers will not play audio before a gesture, so the film is gated behind one click. That
-  // click is also what unlocks the game's AudioContext, exactly as the first click does today.
+function showOpening(gestured){
+  // Browsers will not play audio before a gesture, so the film is gated behind one. Normally that
+  // gesture is the key press on the start screen (showStart), and the film starts at once with its
+  // own soundtrack; entered any other way it shows a plain click gate first.
   // ?nointro goes straight to the title: the tests use it, and it saves sitting through the film
   // thirty times while working on something else.
   if(!OPENING.src||/[?&]nointro\b/.test(location.search))return showTitle();
@@ -2367,19 +2387,19 @@ function showOpening(){
   let done=false,gated=false;
   const finish=()=>{if(done)return;done=true;
     vid.pause();ov.remove();
-    if(OPENING.useVideoAudio)ac();
-    uiModal=null;$('titlebg').hidden=true;showTitle();};              // the track is already looping; showTitle leaves it alone
+    if(OPENING.useVideoAudio){ac();mus.openingDone=true;}            // the film had its own song; the menu theme takes over
+    uiModal=null;$('titlebg').hidden=true;showTitle();};              // (without video audio the track is already looping; showTitle leaves it alone)
   const gate=()=>{
     if(gated)return;gated=true;
     ac();                                    // unlock audio on the gesture
     if(!OPENING.useVideoAudio){uiModal='opening';updateMusic();}
-    ov.querySelector('.openingGate').remove();
+    const g=ov.querySelector('.openingGate');if(g)g.remove();
     ov.appendChild(vid);
     ov.appendChild(skip);
     const pl=vid.play();if(pl&&pl.catch)pl.catch(()=>finish());
   };
   const ov=document.createElement('div');ov.className='opening';
-  ov.innerHTML=`<div class="openingGate"><h1>ANIMALGEDDON</h1><p>Click to begin</p></div>`;
+  if(!gestured)ov.innerHTML=`<div class="openingGate"><h1>ANIMALGEDDON</h1><p>Click to begin</p></div>`;
   const skip=el('button','openingSkip','Skip &#9654;&#9654;');
   skip.onclick=e=>{e.stopPropagation();finish();};
   ov.onclick=()=>{if(!gated)gate();};
@@ -2393,9 +2413,37 @@ function showOpening(){
   // if the file is missing or unplayable, do not sit on a gate the click cannot satisfy
   vid.addEventListener('loadedmetadata',()=>{ov.classList.add('ready');});
   setTimeout(()=>{if(!gated&&!vid.readyState)finish();},4000);
+  if(gestured)gate();
 }
+// The start screen: the film's last frame, the wordmark, "press any key". It is the one gesture
+// the browser needs before anything can make a sound, so the key that leaves it is the key that
+// starts the film with its soundtrack. Esc here skips the film and goes to the mode picker.
+function showStart(){
+  uiModal='start';const bg=$('titlebg');bg.hidden=false;bg.classList.add('start');$('modal').hidden=true;$('advisor').hidden=true;$('tip').hidden=true;$('drawer').hidden=true;
+  embers(true);
+  let done=false;
+  const go=(skip)=>{if(done)return;done=true;document.removeEventListener('keydown',onKey);bg.onclick=null;bg.classList.remove('start');ac();
+    if(skip||!OPENING.src||/[?&]nointro\b/.test(location.search)){uiModal=null;bg.hidden=true;showTitle();}else{bg.hidden=true;showOpening(true);}};
+  const onKey=e=>{if(e.key==='Shift'||e.key==='Control'||e.key==='Alt'||e.key==='Meta')return;e.preventDefault();go(e.key==='Escape');};
+  document.addEventListener('keydown',onKey);bg.onclick=()=>go(false);
+}
+// embers drifting up from the torches, drawn over the backdrop while it is on screen
+const EMB=[];let embRaf=0;
+function embers(on){const c=$('embers');if(!c)return;if(!on){cancelAnimationFrame(embRaf);embRaf=0;return;}if(embRaf)return;
+  const x=c.getContext('2d');let last=performance.now();
+  const step=now=>{const bg=$('titlebg');if(bg.hidden){embRaf=0;x.clearRect(0,0,c.width,c.height);EMB.length=0;return;}
+    const dt=Math.min(0.05,(now-last)/1000);last=now;
+    if(c.width!==c.clientWidth||c.height!==c.clientHeight){c.width=c.clientWidth;c.height=c.clientHeight;}
+    const W=c.width,H=c.height,big=bg.classList.contains('start');
+    if(EMB.length<(big?70:25)&&Math.random()<0.5){const left=Math.random()<0.5;EMB.push({x:W*(left?0.08+Math.random()*0.08:0.5+Math.random()*0.12),y:H*(left?0.32:0.24)*(big?1:0.64)+Math.random()*20,vx:(Math.random()-0.5)*18,vy:-(22+Math.random()*34),life:2+Math.random()*2.5,t:0,r:1+Math.random()*1.6});}
+    x.clearRect(0,0,W,H);
+    for(let i=EMB.length-1;i>=0;i--){const e=EMB[i];e.t+=dt;if(e.t>e.life){EMB.splice(i,1);continue;}
+      e.x+=(e.vx+Math.sin(e.t*3+e.y*0.01)*12)*dt;e.y+=e.vy*dt;const k=1-e.t/e.life;
+      x.globalAlpha=k*0.9;x.fillStyle=k>0.5?'#ffd27a':'#ff7a2a';x.fillRect(e.x|0,e.y|0,e.r,e.r);}
+    x.globalAlpha=1;embRaf=requestAnimationFrame(step);};
+  embRaf=requestAnimationFrame(step);}
 function showTitle(){
-  uiModal='title';if(S)pause();$('advisor').hidden=!S;$('tip').hidden=!S;$('drawer').hidden=true;$('titlebg').hidden=false;
+  uiModal='title';if(S)pause();$('advisor').hidden=!S;$('tip').hidden=!S;$('drawer').hidden=true;$('titlebg').hidden=false;$('titlebg').classList.remove('start');embers(true);
   const m=$('modal');m.hidden=false;m.innerHTML='';m.classList.add('titlemode');const box=el('div','box wide titlecard');
   box.innerHTML=`<p class="tag">The mammals turned. Breed, raise, and post the cold-blooded to hold the wall.</p>`;
   const saved=S&&S.started&&!S.over;
@@ -2573,8 +2621,9 @@ if(savedGame){const g=savedGame;g.bastions=g.bastions||{};
   // birds are sky-only now: any pigeon, crow or eagle on a wall or the patrol takes to the air
   (g.creatures||[]).forEach(c=>{const sp=SPECIES[c.sp];if(sp&&sp.sky&&c.post!=='pen'){c.post='sky';c.front=null;}});}
 loadCfg();
-if(savedGame){S=migrate(savedGame);render();showOpening();}
-else{showOpening();}
+const boot=()=>/[?&]nointro\b/.test(location.search)?showTitle():showStart();   // ?nointro: no start screen, no film (tests)
+if(savedGame){S=migrate(savedGame);render();boot();}
+else{boot();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
 window.__AG={get S(){return S},resCap,enforceCaps,BASE_CAP,repairCostPerHp,repairAffordable,BLD,get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,bastionCrew,bastionLvl,bastionSlots,BASTION,queueExtra,coldFactor,wallMax,patrolCap,isSky,skies,roostPos,earlyEyes,guardsOf,SPECIES,addCreature,rollHorde,hordeStrength,wallSlots,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
