@@ -49,7 +49,7 @@ input.rename{font:700 20px var(--body);padding:6px 10px;border:3px solid #7a4a24
 .psp{display:inline-block;position:relative;vertical-align:middle;image-rendering:pixelated}.psp i{position:absolute;left:0;top:0;width:100%;height:100%;background-image:url(people.png?v=e573a07a);background-repeat:no-repeat}
 .bsp{display:inline-block;background-image:url(bld.png?v=2d8a57a6);background-repeat:no-repeat;vertical-align:middle;image-rendering:pixelated}
 /* stage */
-.main{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;min-height:0}
+.main{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:minmax(0,1fr);gap:10px;min-height:0}   /* the row fills .main, so the stage reaches the bottom of tall windows instead of stopping at the canvas's 960px */
 .stage{position:relative;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;background:#0b100a;border:4px solid #2a1a0e;box-shadow:0 0 0 2px #0a0f0a;overflow:hidden}
 canvas#map{image-rendering:pixelated;display:block;max-width:100%;max-height:100%;cursor:pointer;touch-action:none}
 .tut{position:absolute;left:10px;top:10px;max-width:360px;background:var(--parch);color:var(--ink);border:3px solid #7a4a24;box-shadow:4px 4px 0 rgba(0,0,0,.5);padding:8px 12px;font-size:16px;line-height:1.35;z-index:3}.tut b{display:block;color:var(--ink-amber);letter-spacing:1px;font-size:13px;margin-bottom:2px}.tut .tb{display:flex;gap:8px;margin-top:6px;align-items:center}.tut button{font:700 14px var(--body);background:#7a4a24;color:#f6e9cf;border:0;padding:3px 10px;cursor:pointer}.tut .done{color:var(--ink-good);font-weight:700}
@@ -76,11 +76,12 @@ canvas#map{image-rendering:pixelated;display:block;max-width:100%;max-height:100
 .titlebg{position:absolute;inset:0;z-index:1;background:#0a0d08}
 /* The backdrop is the painted title screen (assets/title-bg.jpg): the homestead at dusk under the
    wood-and-scrap wordmark, which is part of the picture. On the start screen it fills the window
-   with the blinking line in the dark grass; behind the mode picker the same picture is held in
-   the upper panel, anchored to its top so the wordmark and the cabin stay in view. */
-.titlebg i{position:absolute;left:0;right:0;top:0;height:64%;background:url(assets/title-bg.jpg) center top / cover no-repeat;transition:height .4s}
-.titlebg i::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(8,10,6,0) 58%,rgba(8,10,6,.72) 86%,#0a0d08 100%)}
-.titlebg.start i{height:100%;background-position:center center}
+   with the blinking line in the dark grass; behind the mode picker it fills the stage anchored to
+   its top, so the wordmark (the top 40% of the picture) stays above the card, which sits along
+   the bottom; the lower half darkens so the card reads against it. */
+.titlebg i{position:absolute;inset:0;background:url(assets/title-bg.jpg) center top / cover no-repeat}
+.titlebg i::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(8,10,6,0) 45%,rgba(8,10,6,.55) 75%,rgba(8,10,6,.8) 100%)}
+.titlebg.start i{background-position:center center}
 .titlebg.start i::after{background:linear-gradient(to bottom,rgba(0,0,0,0) 70%,rgba(0,0,0,.45))}
 /* firelight: the campfire's warmth on the grass breathes, so the still does not read as a still */
 .titlebg i::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 56% 72%,rgba(255,160,60,.26),rgba(255,160,60,0) 22%);animation:torch 2.1s ease-in-out infinite alternate;z-index:1}
@@ -94,8 +95,12 @@ canvas#map{image-rendering:pixelated;display:block;max-width:100%;max-height:100
    backdrop above it is the wordmark and nothing covers it. */
 .modal.titlemode .box.wide{max-width:1180px;width:100%;padding:12px 16px 10px;max-height:calc(100% - 8px);overflow-y:auto;scrollbar-width:none}
 .modal.titlemode .box.wide::-webkit-scrollbar{display:none}
+/* short windows (laptops): a smaller card, so it stays below the lettering in the picture */
+@media (max-height:840px){.modal.titlemode .box.wide{transform:scale(.82);transform-origin:bottom center;margin-top:-18%}}
 /* the title and start screens are not the game: no HUD, no tab bar, the stage fills the window */
 body.ontitle .hud,body.ontitle .bar{display:none}
+/* each piece is pinned to its row: a hidden HUD leaves no grid item, and without this the stage would slide up into the HUD's row and leave the 1fr row empty below it */
+.hud{grid-row:1}.main{grid-row:2}.bar{grid-row:3}
 body.ontitle .app{padding-block:8px}
 .modal.titlemode .modes{grid-template-columns:repeat(4,1fr);gap:8px}
 .modal.titlemode .mode{padding:7px 9px}
@@ -718,8 +723,8 @@ const NAMES=['Ruth','Deacon','Mara','Otis','Lena','Cal','Pilar','Hank','Nia','Bo
 const SK=['Farmer','Mechanic','Soldier','Medic'];
 const HORDE_HOUR=20, ADULT_DAYS=12, PERSON_HP=10;
 const MODES={
-  easy:{name:'Easy',em:ico('leaf'),desc:'Plenty to start, light hordes a week apart, bites wound instead of killing. Learn the loop.',start:1.6,horde:0.7,every:7,breach:'wound',keep:true,people:5,animals:4},
-  normal:{name:'Normal',em:ico('wood'),desc:'The intended game. Hordes every 5 days, breaches infect.',start:1,horde:1,every:5,breach:'kill',keep:true,people:4,animals:2},
+  easy:{name:'Easy',em:ico('leaf'),desc:'Plenty to start, light hordes a week apart, bites wound instead of killing. Learn the loop.',start:1.6,horde:0.7,every:7,breach:'wound',keep:true,people:5,animals:4,pigeon:true},
+  normal:{name:'Normal',em:ico('wood'),desc:'The intended game. Hordes every 5 days, breaches infect.',start:1,horde:1,every:5,breach:'kill',keep:true,people:4,animals:2,pigeon:true},
   harsh:{name:'Harsh',em:ico('bolt'),desc:'Thin supplies, heavier hordes every 4 days.',start:0.7,horde:1.3,every:4,breach:'kill',keep:true,people:4,animals:2},
   animalgeddon:{name:'Animalgeddon',em:ico('skull'),desc:'Scraps to start, brutal hordes every 3 days, and a lost base keeps nothing.',start:0.5,horde:1.6,every:3,breach:'kill',keep:false,people:3,animals:1},
 };
@@ -773,7 +778,7 @@ const MUSIC={
   lose:{bpm:60,loop:false,ch:[
     {w:'square',v:.03,p:[[69,4],R,R,R,[67,4],R,R,R,[65,4],R,R,R,[64,8],R,R,R,R,R,R,R,R,R,R,R,[62,4],R,R,R,[60,4],R,R,R,[59,4],R,R,R,[57,28],R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R]},
     {w:'triangle',v:.07,p:[[45,8],R,R,R,R,R,R,R,[41,8],R,R,R,R,R,R,R,[40,8],R,R,R,R,R,R,R,[43,8],R,R,R,R,R,R,R,[33,28],R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R]}]}};
-const TRACKS={menu:{f:'assets/music/menu.ogg',loop:true,fb:'menu'},day:{f:'assets/music/day.ogg',loop:true,fb:'day'},night:{f:'assets/music/night.ogg',loop:true,fb:'day'},horde:{f:'assets/music/horde.ogg',loop:true,fb:'horde'},lose:{f:'assets/music/lose.ogg',loop:false,fb:'lose'},win:{f:'assets/music/win.ogg',loop:false,fb:'day'},expedition:{f:'assets/music/expedition.ogg',loop:true,fb:'horde'},opening1:{f:'assets/music/opening1.ogg',loop:false,fb:'menu'},opening2:{f:'assets/music/opening2.ogg',loop:false,fb:'menu'}};
+const TRACKS={menu:{f:'assets/music/menu.ogg',loop:true,fb:'menu'},day:{f:'assets/music/day.ogg',loop:true,fb:'day'},night:{f:'assets/music/night.ogg',loop:true,fb:'day'},horde:{f:'assets/music/horde.ogg',loop:true,fb:'horde'},lose:{f:'assets/music/lose.ogg',loop:false,fb:'lose'},win:{f:'assets/music/win.ogg',loop:false,fb:'day'},expedition:{f:'assets/music/expedition.ogg',loop:true,fb:'horde'},opening1:{f:'assets/music/opening1.ogg',loop:false,fb:'menu'}};
 const mus={id:null,gain:null,src:null,step:0,next:0,timer:null,master:null,bufs:{},loads:{},ended:null};
 const mf=n=>440*Math.pow(2,(n-69)/12);
 function musicMaster(){const a=ac();if(!a)return null;if(!mus.master){mus.master=a.createGain();mus.master.connect(a.destination);}mus.master.gain.value=muted?0:(CFG.music==null?0.5:CFG.music);return mus.master;}
@@ -868,6 +873,7 @@ function newGame(modeId,keepDone){
   roster.forEach(([n,s])=>S.people.push(newPerson(n,s)));
   S.people[0].job='farmer';if(S.people[2])S.people[2].job='keeper';
   for(let i=0;i<MD.animals;i++)addCreature(i%2?'boxturtle':'iguana');
+  if(MD.pigeon)addCreature('pigeon');   // Easy and Normal start with a bird, so the Sky post is there from day one
   S.eggs.push({sp:'iguana',p:0},{sp:'garter',p:0},{sp:'treefrog',p:0},{sp:'pigeon',p:0},{sp:'rooster',p:0});
   log(`Day 1, spring dawn. ${MD.name} mode. A clearing in the forest, a hatchery, a garden, a fire, and an old radio that only hisses. The herd comes out of the eastern trees at dusk every ${MD.every} days.`,'s');
   if(S.done.length)log('Research carried over: '+S.done.map(id=>RESEARCH.find(r=>r.id===id).name).join(', ')+'.','s');
@@ -2044,9 +2050,12 @@ const TUTORIAL=[
   {t:'Put someone to work',b:'Open PEOPLE and drag a name onto Farmer. A building does nothing until someone works it.',ok:()=>inJob('farmer').length>0},
   {t:'The wall',b:'Open WALLS and build the east wall. The herd comes from the east at dusk on horde days (the WALLS tab shows which day).',ok:()=>S.walls.E.lvl>0||S.queue.some(q=>q.kind==='wall')},
   {t:'Post an animal',b:'On the map, drag an animal from the pen onto the east wall. Animals on a wall bite anything that reaches it; animals in the pen heal and breed.',ok:()=>S.creatures.some(c=>c.post==='guard')},
+  {t:'Three kinds of post',b:'Animals serve in three places. <b>Wall</b>: bite over the wall. <b>Patrol</b>: roam inside and catch anything that gets in. <b>Sky</b>: birds only; they fly out to meet the herd and nothing on the ground can touch them. Open ANIMALS and send your pigeon to the Sky.',ok:()=>S.creatures.some(c=>c.post==='sky')||!S.creatures.some(c=>isSky(c))},
+  {t:'Soldiers',b:'Open WALLS and build a Bastion on the east wall. Drag a person onto Soldier: soldiers fire from the bastion and never go down to the herd. Research unlocks higher bastions, more soldiers, and better arms.',ok:()=>bastionLvl('E')>0||S.queue.some(q=>q.kind==='bastion')},
   {t:'Eggs',b:'Click the pen and put two animals of one line in its nest: they lay an egg every few days. A Keeper at the Hatchery makes eggs hatch. Drag someone onto Keeper (upgrade the hatchery for more keeper slots).',ok:()=>inJob('keeper').length>0||S.creatures.length>=5},
+  {t:'Stockpile',b:`The camp can only keep ${BASE_CAP} wood and ${BASE_CAP} scrap in the open; the rest rots by morning. Build a Stockpile to hold more, and upgrade it as the camps grow.`,ok:()=>builtOf('stockpile').length>0||S.queue.some(q=>q.kind==='tile'&&S.tiles[q.key]&&S.tiles[q.key].type==='stockpile')},
   {t:'The signal fire',b:'Build a Signal fire. It draws survivors from the forest and keeps cold-blooded animals warm in winter.',ok:()=>!!fire()},
-  {t:'The first horde',b:'Pause any time during a fight (space). Drag animals between walls. If a wall breaks, a gap opens; your animals fall back to hold it and builders patch it afterwards.',ok:()=>!!S.lastHorde},
+  {t:'The first horde',b:'Pause any time during a fight (space). Drag animals between walls. If a wall breaks, a gap opens; your animals fall back to hold it and builders patch it afterwards. Repairs cost wood and scrap. Click a wall and choose Repair first to put it ahead of the build queue.',ok:()=>!!S.lastHorde},
   {t:'Research',b:'Build a Research lab and add a Researcher. Research unlocks stronger walls, second and third animal forms, and better production.',ok:()=>S.done.length>0},
   {t:'The Workshop',b:'Dead infected drop hide and bone. From day 6 you can build a Workshop; a Crafter turns the loot into armour and weapons you equip on animals in the ANIMALS tab.',ok:()=>builtOf('workshop').length>0||S.day>=20},
   {t:'The radio',b:'Day 15: the Radio relay unlocks. Build it and keep it standing until day 30 to make contact. That is the goal. Good luck, leader.',ok:()=>S.day>=16},
@@ -2362,7 +2371,9 @@ function renderDrawer(){
     const lg=el('div','log');S.log.slice().reverse().forEach(([m,c])=>lg.appendChild(el('p',c,m)));body.appendChild(lg);
     body.appendChild(el('details','',`<summary>How it works</summary><ul>
       <li>Time runs on its own: 24 hours a day, about a minute at normal speed; 10 days a season. Space pauses; 1 / 2 / 3 set speed; M mutes. The game pauses itself when something needs you.</li>
-      <li>You are the leader. Place blueprints, upgrade buildings (click one), drag people between jobs, drag animals onto walls. Everyone without a job builds. Builders work the top of the queue first and repair walls when idle.</li>
+      <li>You are the leader. Place blueprints, upgrade buildings (click one), drag people between jobs, drag animals onto walls. Everyone without a job builds. Builders work the top of the queue first and repair walls when idle; repairs draw wood and scrap as they go, and <b>Repair first</b> on a wall card puts that wall ahead of the queue.</li>
+      <li><b>Three posts.</b> Wall animals bite over the wall and slide along it to where the herd is pressing. Patrol animals roam inside and catch anything that gets through (the pen's level sets how many). Sky birds fly out past the wall in sorties and nothing on the ground can reach them; a bat can. A <b>Bastion</b> on a wall holds Soldiers, who fire from it and never fight in close; higher bastions and better arms come from research.</li>
+      <li><b>Supplies.</b> Wood and scrap cap at ${BASE_CAP} each until a Stockpile is built (the biggest one sets the cap); anything over rots by morning. Animals on a wall, the patrol or in the sky do not count against the pen.</li>
       <li>${ico('str',1)} Strength: building, guarding, chopping, scrapping. ${ico('spd',1)} Speed: scouting, trapping, repairs. ${ico('int',1)} Intelligence: farming, bugs, eggs, research. Working a job trains its stat.</li>
       <li>Meals at midnight. People eat greens. Animals eat their chain every other day: ${ico('greens',1)} lizards and turtles, ${aico('mouse',24)} snakes and birds of prey, ${ico('insects',1)} frogs and small birds.</li>
       <li>Seasons: spring and summer are breeding seasons. Autumn is for stocking up. Winter halves gardens, makes hordes heavier and slower, and cold-blooded animals outside the fire's warmth fight at half strength. Upgrade the one fire to widen its warmth.</li>
@@ -2446,7 +2457,7 @@ function showTitle(){
   if(saved){const b=btn(`▶ Continue · day ${S.day}, ${M().name}`,'',()=>{uiModal=null;$('titlebg').hidden=true;confirmMode=null;m.hidden=true;render();},'go');box.appendChild(b);}
   box.appendChild(el('h4','','NEW GAME · PICK A MODE'));
   const modes=el('div','modes');
-  Object.entries(MODES).forEach(([id,md])=>{const c=el('div','mode'+(confirmMode===id?' sel':''),`<b>${md.em} ${md.name}</b><small>${md.desc}</small><small>Start ×${md.start} · hordes ×${md.horde} every ${md.every} days · ${md.people} people, ${md.animals} animals</small>`);
+  Object.entries(MODES).forEach(([id,md])=>{const c=el('div','mode'+(confirmMode===id?' sel':''),`<b>${md.em} ${md.name}</b><small>${md.desc}</small><small>Start ×${md.start} · hordes ×${md.horde} every ${md.every} days · ${md.people} people, ${md.animals} animals${md.pigeon?' + a pigeon':''}</small>`);
     c.onclick=()=>{ac();if(saved){confirmMode=id;showTitle();return;}const keep=S&&S.over&&S.done?S.done.slice():[];uiModal=null;$('titlebg').hidden=true;newGame(id,keep);closeDrawer();};modes.appendChild(c);});
   box.appendChild(modes);
   if(confirmMode&&saved){const r=el('div','row');r.style.justifyContent='center';r.appendChild(el('span','warn',`Start a new ${MODES[confirmMode].name} game? Your day ${S.day} ${M().name} game will be replaced${M().keep?' (research carries over)':''}.`));
@@ -2622,6 +2633,6 @@ if(savedGame){S=migrate(savedGame);render();boot();}
 else{boot();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
-window.__AG={get S(){return S},resCap,enforceCaps,BASE_CAP,repairCostPerHp,repairAffordable,BLD,get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,bastionCrew,bastionLvl,bastionSlots,BASTION,queueExtra,coldFactor,wallMax,patrolCap,isSky,skies,roostPos,earlyEyes,guardsOf,SPECIES,addCreature,rollHorde,hordeStrength,wallSlots,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
+window.__AG={get S(){return S},TUTORIAL,showTitle,resCap,enforceCaps,BASE_CAP,repairCostPerHp,repairAffordable,BLD,get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,bastionCrew,bastionLvl,bastionSlots,BASTION,queueExtra,coldFactor,wallMax,patrolCap,isSky,skies,roostPos,earlyEyes,guardsOf,SPECIES,addCreature,rollHorde,hordeStrength,wallSlots,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
 })();
 </script>
