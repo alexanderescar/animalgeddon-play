@@ -482,7 +482,7 @@ const SEASON_DAYS=10;
 const BUILD={
   garden:{name:'Garden',job:'farmer',desc:'Greens for people, lizards, turtles. Rats raid it.',lv:[{cost:{wood:3},bp:4,slots:2,eff:0},{cost:{wood:6,scrap:2},bp:6,slots:3,eff:1},{cost:{wood:10,scrap:4},bp:8,slots:4,eff:2,note:'grows through winter'}]},
   lumber:{name:'Lumber camp',job:'lumberjack',desc:'Wood.',lv:[{cost:{scrap:2},bp:3,slots:2,eff:0},{cost:{wood:4,scrap:4},bp:5,slots:3,eff:1},{cost:{wood:6,scrap:8},bp:7,slots:4,eff:2}]},
-  stockpile:{name:'Stockpile',desc:'Holds wood and scrap. Without one the camp keeps 40 of each and the rest rots in the open.',lv:[{cost:{wood:4,scrap:2},bp:4,cap:90},{cost:{wood:8,scrap:6},bp:6,cap:160},{cost:{wood:10,scrap:12},bp:9,cap:260}]},
+  stockpile:{name:'Stockpile',desc:'Holds wood, scrap and food. Without one the camp keeps 40 of each and the rest rots or spoils in the open. Costs nothing to keep.',lv:[{cost:{wood:4,scrap:2},bp:4,cap:90},{cost:{wood:8,scrap:6},bp:6,cap:160},{cost:{wood:10,scrap:12},bp:9,cap:260}]},
   scrapyard:{name:'Scrapyard',job:'scrapper',desc:'Scrap.',lv:[{cost:{wood:2},bp:3,slots:2,eff:0},{cost:{wood:4,scrap:2},bp:5,slots:3,eff:1},{cost:{wood:8,scrap:4},bp:7,slots:4,eff:2}]},
   traps:{name:'Rodent traps',job:'trapper',desc:'Rodents for snakes and birds of prey.',lv:[{cost:{wood:3,scrap:1},bp:3,slots:2,eff:0},{cost:{wood:5,scrap:3},bp:5,slots:3,eff:1},{cost:{wood:8,scrap:6},bp:7,slots:4,eff:2}]},
   bughut:{name:'Insect hut',job:'bugkeeper',desc:'Insects for frogs and small birds.',lv:[{cost:{wood:2},bp:3,slots:2,eff:0},{cost:{wood:4,scrap:2},bp:5,slots:3,eff:1},{cost:{wood:8,scrap:4},bp:7,slots:4,eff:2}]},
@@ -890,8 +890,9 @@ const LV=t=>BUILD[t.type].lv[(t.lvl||1)-1];
 // stockpiles do not stack - the biggest one counts - so the choice is to upgrade, not to sprawl.
 // Everything over the cap rots in the open and the report says so: that is the nudge to build.
 const BASE_CAP=40;
-const resCap=k=>(k==='wood'||k==='scrap')?Math.max(BASE_CAP,...builtOf('stockpile').map(t=>LV(t).cap||BASE_CAP)):Infinity;
-function enforceCaps(){S.rot=S.rot||{};for(const k of ['wood','scrap']){const cap=resCap(k);if(S.res[k]>cap){S.rot[k]=(S.rot[k]||0)+(S.res[k]-cap);S.res[k]=cap;}}}
+const CAPPED=['wood','scrap','greens','rodents','insects'];
+const resCap=k=>CAPPED.includes(k)?Math.max(BASE_CAP,...builtOf('stockpile').map(t=>LV(t).cap||BASE_CAP)):Infinity;
+function enforceCaps(){S.rot=S.rot||{};for(const k of CAPPED){const cap=resCap(k);if(S.res[k]>cap){S.rot[k]=(S.rot[k]||0)+(S.res[k]-cap);S.res[k]=cap;}}}
 const builtOf=type=>Object.values(S.tiles).filter(t=>t.type===type&&t.done);
 const anyOf=type=>Object.values(S.tiles).some(t=>t.type===type);
 const hasR=id=>S.done.includes(id);
@@ -979,10 +980,25 @@ function production(){
   GATHER.forEach(k=>builtOf(k).forEach(t=>{out[JOBS[BUILD[k].job].res]+=hasR('auto')?2:1;}));
   if(hasR('compost'))out.greens+=builtOf('garden').length;if(hasR('press')){out.scrap+=2*builtOf('scrapyard').length;out.insects+=2*builtOf('bughut').length;}
   if(hasR('nightshift'))Object.keys(out).forEach(k=>out[k]*=1.5);
+  // the camp running down: wood-kept buildings make greens, wood, scrap, rodents and insects; scrap-kept ones make research
+  if(unkept('wood'))['greens','wood','scrap','rodents','insects'].forEach(k=>out[k]*=0.5);
+  if(unkept('scrap'))out.research*=0.5;
   Object.keys(out).forEach(k=>out[k]=Math.round(out[k]*10)/10);
   return out;
 }
-function consumption(){const c={greens:S.people.length,rodents:0,insects:0};S.creatures.forEach(cr=>{c[SPECIES[cr.sp].food]+=0.5;});return c;}
+// Camp upkeep: every standing building burns a little of what it is made of, each day, per level.
+// Wooden working buildings take wood; the technical ones (lab, workshop, relay, infirmary, trading
+// post) and the bastions take scrap; the signal fire burns wood. The Stockpile and roads cost
+// nothing to keep. It is drawn hour by hour with production, so the chips' small number is the
+// true change per day. When the pile is empty the camp runs down: buildings whose upkeep went
+// unpaid work at half until it is paid, and the morning report says so.
+const UPKEEP={lvl:0.2,fire:0.4,scrapKinds:['lab','workshop','relay','infirmary','tradepost']};
+function upkeep(){const u={wood:0,scrap:0};
+  Object.values(S.tiles).forEach(t=>{if(!t.done||t.type==='stockpile')return;if(t.type==='signal'){u.wood+=UPKEEP.fire*t.lvl;return;}u[UPKEEP.scrapKinds.includes(t.type)?'scrap':'wood']+=UPKEEP.lvl*t.lvl;});
+  Object.values(S.bastions||{}).forEach(l=>{u.scrap+=UPKEEP.lvl*l;});
+  u.wood=Math.round(u.wood*10)/10;u.scrap=Math.round(u.scrap*10)/10;return u;}
+const unkept=k=>!!(S.unkept&&S.unkept[k]);
+function consumption(){const c={greens:S.people.length,rodents:0,insects:0};S.creatures.forEach(cr=>{c[SPECIES[cr.sp].food]+=0.5;});const u=upkeep();c.wood=u.wood;c.scrap=u.scrap;return c;}
 const eatsTonight=(c,day)=>(day+c.id)%2===0;
 function defenseParts(){
   const guards=inJob('guard').filter(p=>!p.wounded).reduce((n,p)=>n+2+p.st.str,0);
@@ -990,7 +1006,13 @@ function defenseParts(){
   return {guards,posted,total:guards+posted};
 }
 const buildPts=()=>Math.round(inJob('builder').reduce((n,p)=>n+tier(p.st.str)*eff(p),0)*buildMult()*10)/10;
-const hordeStrength=day=>Math.round((4+day*0.8)*1.4*(seasonIdx(day)===3?1.25:1)*M().horde);   // the big herd, on horde days
+// The big herd, on horde days. Linear in the day, then a ramp from day 10 so the hordes grow with the
+// base: a defence compounds (wall level, bastion, arms, breeding) and a straight line stopped
+// being a threat by day 30. The probe (tests/balance.js) put a competent day-36 Normal base at a
+// third of a wall lost and no breaches on the old line; with the ramp (x1.6 at day 36, x1.9 at day
+// 50) the wall breaks about one horde night in three and animals die now and then.
+const HORDE_RAMP=0.023;
+const hordeStrength=day=>Math.round((4+day*0.8)*1.4*(1+HORDE_RAMP*Math.max(0,day-10))*(seasonIdx(day)===3?1.25:1)*M().horde*((window.__AG&&window.__AG.DBG&&window.__AG.DBG.hordeMul)||1));
 const prowlStrength=day=>Math.max(1,Math.min(6,Math.round(hordeStrength(day)/5.5)));            // the few that test a wall most other nights
 const nextHordeDay=()=>{const e=M().every;const d=S.day%e===0?S.day:S.day+(e-S.day%e);return (d===S.day&&S.hour>=HORDE_HOUR)?d+e:d;};
 const daysLeft=(stock,net)=>net>=0?Infinity:Math.floor(stock/-net);
@@ -1024,7 +1046,9 @@ function pause(){setSpeed(0);}
 function tick(){
   if(S.over||S.alerts.length||uiModal){pause();return;}
   S.hour+=1;if(S.hour%3===0)checkTrophies();if(S.hour===22&&builtOf('shelter').length)tip('night');
-  const prod=production();Object.entries(prod).forEach(([k,v])=>{S.res[k]+=v/24;});enforceCaps();
+  const prod=production();Object.entries(prod).forEach(([k,v])=>{S.res[k]+=v/24;});
+  {const u=upkeep();S.unkept=S.unkept||{};for(const k of ['wood','scrap']){const due=u[k]/24;if(S.res[k]>=due){S.res[k]-=due;if(S.unkept[k]&&S.res[k]>=u[k]*0.5)S.unkept[k]=false;}else{S.res[k]=0;if(!S.unkept[k]){S.unkept[k]=S.day;S.unkeptSeen=S.unkeptSeen||{};if(S.unkeptSeen[k]!==S.day){S.unkeptSeen[k]=S.day;tip('unkept',k);}}}}}
+  enforceCaps();
   if(S.craft.length){let cp=inJob('crafter').filter(p=>!p.wounded).reduce((n,p)=>n+(1+(p.st.int>=3?1:0)+jobEff('crafter'))*eff(p),0)/24;
     while(cp>0&&S.craft.length){const j=S.craft[0];const use=Math.min(j.work-j.done,cp);j.done+=use;cp-=use;if(j.done>=j.work-1e-6){S.craft.shift();S.gear[j.id]=(S.gear[j.id]||0)+1;tip('gear',GEAR[j.id].n);S.stats.crafted++;log(`Workshop: ${GEAR[j.id].n} is ready. Equip it in the Animals tab.`,'g');sfx('done');const ws=builtOf('workshop')[0];if(ws){const c=tileCenter(K(ws.x,ws.y));floater(c.x,c.y-24,GEAR[j.id].n+' ready','#8fd45c');}}}}
   if(S.hour%6===3&&!S.battle){GATHER.concat(['lab']).forEach(k=>{const ts=builtOf(k);if(!ts.length)return;const res=JOBS[BUILD[k].job].res;const v=prod[res]||0;if(v<=0)return;const t=ts[0];const c=tileCenter(K(t.x,t.y));floater(c.x+(Math.random()-0.5)*20,c.y-20,`+${Math.round(v/4*10)/10} ${RESN[res]||res}`,'#dcbd8f');});}
@@ -1068,7 +1092,7 @@ function tick(){
   enforceCaps();render();save();
 }
 function midnight(){
-  const R={day:S.day-1,ate:{},hungry:[],starved:[],hatched:[],laid:[],arrived:null,born:null,left:null,grew:[],levelled:[],healed:[],junk:[],relic:null};
+  const R={day:S.day-1,ate:{},hungry:[],starved:[],hatched:[],laid:[],arrived:null,born:null,left:null,grew:[],levelled:[],healed:[],junk:[],relic:null,unkept:['wood','scrap'].filter(k=>unkept(k))};
   adults().forEach(p=>{if(gainXp(p,1))R.levelled.push(`${p.name} ${EM[JOBS[p.job].stat]}${p.st[JOBS[p.job].stat]}`);});
   const medic=S.people.some(p=>p.skill==='Medic'&&!p.wounded);
   const inf=builtOf('infirmary')[0];const healRate=(medic?2:1)+(inf?LV(inf).heal:0)+(hasR('medicine')?1:0);
@@ -1130,7 +1154,7 @@ function midnight(){
   if(S.day>=31&&!S.contact){if(relay()){S.contact=true;S.playWin=true;sfx('win');alert_(ico('radio')+' Contact',`The relay crackles and a voice answers by name. There are others out there: a hospital holding out in the hills, a seed vault, a radio net of bases like yours. They have maps.<br><br><b>Expeditions unlock in the next build.</b> Until then, the base is the game: hold the wall, grow the herd, and keep them talking.`,'good');}
     else if((S.day-31)%7===0)alert_(ico('radio')+' They called',`The voice came and went. Without a relay there was nothing to answer with. They will try again in a week. Build the Radio relay.`,'bad');}
   S.report=R;writeReport(R);
-  const bad0=R.hungry.length||R.starved.length||R.left||R.arrived||R.born||R.rot;const daily=CFG.summary==='daily'||bad0||(CFG.summary==='auto'&&(S.day<=15||(S.day-1)%7===0))||(CFG.summary==='weekly'&&(S.day-1)%7===0);
+  const bad0=R.hungry.length||R.starved.length||R.left||R.arrived||R.born||R.rot||R.unkept.length;const daily=CFG.summary==='daily'||bad0||(CFG.summary==='auto'&&(S.day<=15||(S.day-1)%7===0))||(CFG.summary==='weekly'&&(S.day-1)%7===0);
   if(daily){const fmt=o=>Object.entries(o).map(([k,v])=>`${EM[k]||''}${v}`).join(' ');const prod=production(),cons=consumption();const L=[];
     L.push(`Ate ${fmt(R.ate)||'nothing'}. Making ${Object.entries(prod).filter(([k,v])=>v>0).map(([k,v])=>EM[k]+'+'+v).join(' ')||'nothing'} a day.`);
     FOODS.forEach(f=>{const dl=daysLeft(S.res[f],prod[f]-cons[f]);if(cons[f]&&dl<4)L.push(`<span class="bad">${EM[f]} ${RESN[f]} run out in ${dl} day${dl===1?'':'s'}.</span>`);});
@@ -1140,7 +1164,9 @@ function midnight(){
     if(R.levelled.length)L.push(`Improved: ${R.levelled.join(', ')}.`);if(R.healed.length)L.push(`Back on their feet: ${R.healed.join(', ')}.`);if(R.grew.length)L.push(`Grown up: ${R.grew.join(', ')}.`);
     if(R.left)L.push(`<span class="bad">${R.left} left in the night. Morale was gone.</span>`);
     if(R.noBed)L.push(`<span class="warn">A survivor came to the fire but found no spare bed and moved on. Build or upgrade a shelter.</span>`);
-    if(R.rot)L.push(`<span class="warn">Rotted in the open: ${Object.entries(R.rot).map(([k,v])=>EM[k]+Math.round(v)+' '+RESN[k].toLowerCase()).join(', ')}. ${builtOf('stockpile').length?'Upgrade the Stockpile to hold more.':'Build a Stockpile to hold more than '+BASE_CAP+'.'}</span>`);
+    if(R.rot){const mat=Object.entries(R.rot).filter(([k])=>!FOODS.includes(k)),food=Object.entries(R.rot).filter(([k])=>FOODS.includes(k));const f=a=>a.map(([k,v])=>EM[k]+Math.round(v)+' '+RESN[k].toLowerCase()).join(', ');
+      L.push(`<span class="warn">${mat.length?'Rotted in the open: '+f(mat)+'. ':''}${food.length?'Spoiled: '+f(food)+'. ':''}${builtOf('stockpile').length?'Upgrade the Stockpile to hold more.':'Build a Stockpile to hold more than '+BASE_CAP+'.'}</span>`);}
+    if(R.unkept.length)L.push(`<span class="bad">Upkeep unpaid: ${R.unkept.map(k=>RESN[k].toLowerCase()).join(' and ')} ran out, so the buildings that need ${R.unkept.length>1?'them':'it'} worked at half. Fewer buildings, or more hands making ${R.unkept.map(k=>RESN[k].toLowerCase()).join(' and ')}.</span>`);
     const w=WEATHER[S.weather];if(S.weather!=='clear')L.push(`${w.em} ${w.n} today: ${w.d}.`);
     const nh=nextHordeDay();L.push(`Next horde: ${nh===S.day?'tonight':'in '+(nh-S.day)+' day'+(nh-S.day===1?'':'s')}, herd ${hordeStrength(nh)}.`);
     const bad=R.hungry.length||R.starved.length||R.left;const weekly=S.day>15&&(S.day-1)%7===0;
@@ -1173,7 +1199,8 @@ const TIPS={
   forage:{t:'The scouts found an egg',b:(sp)=>`Your scouts brought back a ${SPECIES[sp].name.toLowerCase()} egg from the forest. Each scout adds a day of searching per night and an egg turns up at four; now and then one comes back wounded. Change what they look for on the hatchery.`,go:['Open People','people']},
   pair_ready:{t:'Two of a line in the pen',b:(g)=>`You have two animals of the ${g} line resting in the pen. They do not breed on their own: click the <b>pen</b> and put them in a nest, and they lay an egg every ${layEvery()} nights in spring and summer.`},
   hatched:{t:'An egg hatched',b:(sp)=>`A ${SPECIES[sp].name.toLowerCase()} hatched and went to the pen. Keepers at the hatchery add a keeper-day to an egg each night; at ${eggNeed()} it hatches, if the pen has room. Hatchlings are the same species as the egg: the stronger forms come from research and the Grow button on an animal's card.`,go:['Open Animals','animals']},
-  rot:{t:'Wood is rotting in the open',b:()=>`The camp can only keep ${BASE_CAP} wood and ${BASE_CAP} scrap lying about; anything the camps bring in over that rots or rusts away by morning. Build a <b>Stockpile</b> to hold more (90, then 160, then 260 when upgraded). Repairs cost materials too: builders draw wood and scrap from the pile as they mend, and a wall beaten to nothing costs as much to repair as it did to build. An empty pile means a wall that stays broken.`,go:['Open Build','build']},
+  unkept:{t:'The camp is running down',b:(k)=>`Every standing building burns a little ${k} each day to stay in repair (${UPKEEP.lvl} per level; see each building's card). The ${k} ran out, so the buildings that need it are working at half until the pile recovers. Put more hands on ${k==='wood'?'the lumber camp or scouting':'the scrapyard'}, or pull down what you are not using.`,go:['Open Supplies','supplies']},
+  rot:{t:'Supplies are rotting in the open',b:()=>`The camp can only keep ${BASE_CAP} of each supply lying about: wood, scrap, greens, rodents, insects. Anything over that rots or spoils by morning. Build a <b>Stockpile</b> to hold more (90, then 160, then 260 when upgraded). Repairs cost materials too: builders draw wood and scrap from the pile as they mend, and a wall beaten to nothing costs as much to repair as it did to build. An empty pile means a wall that stays broken.`,go:['Open Build','build']},
   relic:{t:'Something from before',b:'Your scouts turn up the odd thing out in the forest that is no use to anybody: a photograph, a toy, a sign pointing at a town that is not there any more. They are worth nothing and they do not do anything. They go on the shelf in SUPPLIES.',go:['Open Supplies','supply']},
   sky:{t:'Birds take the sky',b:'Pigeons, crows and eagles are not wall animals. Post one to the <b>Sky</b> and it roosts on the bastion (or the pen fence) until a horde is called, then flies out beyond the walls to meet the herd where it is and strikes from the air. Nothing on the ground can touch it; only bats can. It fights in <b>sorties</b> - a few strikes, then back to the roost to rest - so more birds means more pressure in the air. A pigeon or crow in the sky still gives the two-hour early warning.',go:['Open Animals','animals']},
   pen_full:{t:'The pen is full',b:()=>`Every animal resting in the pen takes a slot (${penCap()} right now), and eggs waiting at the hatchery count too. While it is full no nest lays and nothing hatches. Post animals to a wall or patrol (they do not use pen slots there), or upgrade the pen.`,go:['Open Animals','animals']},
@@ -1305,7 +1332,8 @@ function updateBattle(dt){
   if(B.wave<B.waves.length){if(!B.enemies.length){B.lull+=dt;if(B.lull>7)spawnWave();}else if(B.waveT>70)spawnWave();}
   const guardsP=inJob('guard').filter(p=>!p.wounded);const hp0=hatcheryPos();const gpEff=jobEff('guard');
   const guardAnimals=S.creatures.filter(c=>c.post==='guard');const patrolAnimals=patrols();
-  B.enemies.forEach((e,idx)=>{const E=ENEMY[e.type];const w=S.walls[e.dir];e.t+=dt*60;
+  B.enemies.forEach((e,idx)=>{if(!S.battle)return;   // a breach can end the game mid-loop (S.battle goes null); the rest of the herd has nothing left to do
+    const E=ENEMY[e.type];const w=S.walls[e.dir];e.t+=dt*60;
     // lying there as a corpse: no moving, no biting, and nothing will target it until it gets up
     if(e.dying>0){e.dying-=dt;if(e.dying<=0){e.dead=true;corpse(e.skin||e.type,e.x,e.y,e.face);}return;}
     if(e.playing>0){e.playing-=dt;if(e.playing<=0){e.playing=0;puff(e.x,e.y,'#cbb9a0',6,30);floater(e.x,e.y-20,'gets up!','#ffd479');ticker(`A ${E.name.toLowerCase()} was playing dead and got back up`);}return;}
@@ -1362,7 +1390,7 @@ function updateBattle(dt){
     else if(E.sneak&&e.inside&&d<20){const fb=nearestFoodBuilding(e.x,e.y);if(fb){const f=FOODBLD[fb.type];const take=Math.min(S.res[f],0.6*dt);S.res[f]-=take;B.stolen[f]=(B.stolen[f]||0)+take;e.stole+=take;if(e.stole>=1){e.stole=0;e.bag=(e.bag||0)+1;floater(e.x,e.y-20,`-1 ${RESN[f].toLowerCase()}`,'#f0b64a');if(e.bag>=3){e.dead=true;B.fled=(B.fled||0)+1;floater(e.x,e.y-30,'got away','#93a386');}}}
       else if(S.eggs.length&&Math.random()<dt*0.3){S.eggs.pop();floater(e.x,e.y-20,'-1 egg','#f0b64a');}}
     else if(d>2&&canAct){const sp=E.speed*(S.battle.kind==='prowl'?0.7:1)*(hasR('caltrops')&&!e.inside&&nearWall(e)?0.6:1)*(e.charging?2.3:1)*(e.blind>0?0.2:1)*(isWinter()?0.8:1)*(W()==='rain'||W()==='snow'?0.8:1);e.x+=dx/d*sp*dt;e.y+=dy/d*sp*dt;e.face=dx>0?1:-1;}
-    if(e.inside&&!E.sneak&&Math.hypot(e.x-hp0.x,e.y-hp0.y)<30){e.dead=true;breach(e);}
+    if(e.inside&&!E.sneak&&Math.hypot(e.x-hp0.x,e.y-hp0.y)<30){e.dead=true;breach(e);if(!S.battle)return;}
   });
   if(!S.battle)return;
   // Sky birds. A sortie is a handful of strikes; then the bird goes home to rest. A strike is a
@@ -2053,7 +2081,7 @@ const TUTORIAL=[
   {t:'Three kinds of post',b:'Animals serve in three places. <b>Wall</b>: bite over the wall. <b>Patrol</b>: roam inside and catch anything that gets in. <b>Sky</b>: birds only; they fly out to meet the herd and nothing on the ground can touch them. Open ANIMALS and send your pigeon to the Sky.',ok:()=>S.creatures.some(c=>c.post==='sky')||!S.creatures.some(c=>isSky(c))},
   {t:'Soldiers',b:'Open WALLS and build a Bastion on the east wall. Drag a person onto Soldier: soldiers fire from the bastion and never go down to the herd. Research unlocks higher bastions, more soldiers, and better arms.',ok:()=>bastionLvl('E')>0||S.queue.some(q=>q.kind==='bastion')},
   {t:'Eggs',b:'Click the pen and put two animals of one line in its nest: they lay an egg every few days. A Keeper at the Hatchery makes eggs hatch. Drag someone onto Keeper (upgrade the hatchery for more keeper slots).',ok:()=>inJob('keeper').length>0||S.creatures.length>=5},
-  {t:'Stockpile',b:`The camp can only keep ${BASE_CAP} wood and ${BASE_CAP} scrap in the open; the rest rots by morning. Build a Stockpile to hold more, and upgrade it as the camps grow.`,ok:()=>builtOf('stockpile').length>0||S.queue.some(q=>q.kind==='tile'&&S.tiles[q.key]&&S.tiles[q.key].type==='stockpile')},
+  {t:'Stockpile',b:`The camp can only keep ${BASE_CAP} of each supply in the open (wood, scrap, greens, rodents, insects); the rest rots or spoils by morning. Build a Stockpile to hold more, and upgrade it as the camps grow. Every other building burns a little wood or scrap a day to stay standing; its card shows how much.`,ok:()=>builtOf('stockpile').length>0||S.queue.some(q=>q.kind==='tile'&&S.tiles[q.key]&&S.tiles[q.key].type==='stockpile')},
   {t:'The signal fire',b:'Build a Signal fire. It draws survivors from the forest and keeps cold-blooded animals warm in winter.',ok:()=>!!fire()},
   {t:'The first horde',b:'Pause any time during a fight (space). Drag animals between walls. If a wall breaks, a gap opens; your animals fall back to hold it and builders patch it afterwards. Repairs cost wood and scrap. Click a wall and choose Repair first to put it ahead of the build queue.',ok:()=>!!S.lastHorde},
   {t:'Research',b:'Build a Research lab and add a Researcher. Research unlocks stronger walls, second and third animal forms, and better production.',ok:()=>S.done.length>0},
@@ -2088,7 +2116,7 @@ function renderHud(){
   const prod=production(),cons=consumption();const res=$('res');res.innerHTML='';
   Object.keys(RESN).forEach(k=>{if(LOOT.includes(k)){if(S.res[k]>0||builtOf('workshop').length){const c=el('span','chip',`${EM[k]}${fl(S.res[k])}`);c.title=`${RESN[k]}: salvaged from the infected, for the workshop`;res.appendChild(c);}return;}const net=Math.round(((prod[k]||0)-(cons[k]||0))*10)/10;const dl=cons[k]?daysLeft(S.res[k],net):Infinity;
     const cap=resCap(k);const atCap=cap!==Infinity&&S.res[k]>=cap-0.5;
-    const c=el('span','chip '+(atCap?'bad':cons[k]&&dl<2?'bad':cons[k]&&dl<4?'warn':''),`${EM[k]}${fl(S.res[k])}<small>${cap!==Infinity?'/'+cap+' ':''}${net>=0?'+':''}${net}</small>`);c.title=cap!==Infinity?`${RESN[k]}: building material. The camp can hold ${cap}${builtOf('stockpile').length?' in the Stockpile':' in the open'}; anything over that rots. The small number is the change per day.`:`${RESN[k]}: ${EATERS[k]||'building material'}. The small number is the change per day.`;res.appendChild(c);});
+    const c=el('span','chip '+(atCap?'bad':cons[k]&&dl<2?'bad':cons[k]&&dl<4?'warn':''),`${EM[k]}${fl(S.res[k])}<small>${cap!==Infinity?'/'+cap+' ':''}${net>=0?'+':''}${net}</small>`);c.title=`${RESN[k]}: ${EATERS[k]||'building material and upkeep'}. The camp can hold ${cap}${builtOf('stockpile').length?' in the Stockpile':' in the open'}; anything over that ${FOODS.includes(k)?'spoils':'rots'}. The small number is the change per day${cons[k]?' after '+(FOODS.includes(k)?'meals':'upkeep of '+cons[k]+' a day'):''}.`;res.appendChild(c);});
   const rsc=el('span','chip',`${EM.research}${fl(S.res.research)}<small>+${prod.research}</small>`);rsc.title='Research points';res.appendChild(rsc);
   const mc=el('span','chip '+(S.morale<=2?'bad':''),`${EM.morale}${S.morale}<small>/10</small>`);mc.title='Morale';res.appendChild(mc);
   const wd=S.people.filter(p=>p.wounded).length;
@@ -2126,6 +2154,7 @@ function wallCard(dir,focus){
     const rb=btn(on?`${EM.wall} Repairing first`:`${EM.wall} Repair first`,on?`builders are on it ahead of the queue · ${Math.ceil(w.hp)}/${wallMax(w.lvl)} HP · click to stop`:`${Math.ceil(w.hp)}/${wallMax(w.lvl)} HP · put this wall ahead of everything in the build queue`,
       ()=>{S.repair=S.repair||{};S.repair[dir]=!on;if(!on)log(`Builders will repair the ${DIRS[dir].toLowerCase()} wall before anything else.`,'d');sfx('click');save();render();},'sm'+(on?' sel':''));
     rb.disabled=S.over||!inJob('builder').length;box.appendChild(rb);
+    if(bastionLvl(dir))box.appendChild(el('small',unkept('scrap')?'bad':'muted',`Bastion upkeep ${EM.scrap}${Math.round(UPKEEP.lvl*bastionLvl(dir)*10)/10} a day${unkept('scrap')?' · unpaid':''}`));
     // the bill: what the full mend costs in materials, and whether the camp has it
     {const per=repairCostPerHp(w.lvl);const miss=wallMax(w.lvl)-w.hp;const bill={};for(const k in per)bill[k]=Math.ceil(per[k]*miss);const short=Object.entries(bill).some(([k,v])=>S.res[k]<v);
      box.appendChild(el('small',short?'warn':'muted',`Full repair costs ${costStr(bill)}${short?' · not enough on hand; builders mend what you can pay for':''}`));}
@@ -2163,7 +2192,8 @@ function renderDrawer(){
       const b=btn(`${ico('leaf',1)} ${DIRS[dir]}`,q?`clearing ${fl(q.bp)}/${q.need} bp`:`${costStr(CLEAR.cost)} · ${CLEAR.bp} bp · +${CLEAR.gain} wood · opens a front`,()=>queueClear(dir));b.disabled=!!q||!canPay(CLEAR.cost)||S.over;cl.appendChild(b);});body.appendChild(cl);
   }
   if(tab==='tile'){const t=sel&&S.tiles[sel];if(!t){closeDrawer();return;}const b=BUILD[t.type];const L=LV(t);title.innerHTML=`${icon(bname(t.type,t.lvl)||bsprite(t.type,t.lvl))} ${b.name.toUpperCase()} · L${t.lvl}`;const q=S.queue.find(q=>q.key===sel&&q.kind==='tile');const up=S.queue.find(q=>q.kind==='up'&&q.key===sel);
-    body.appendChild(el('div','',t.done?(b.job?`${inJob(b.job).length}/${jobCap(b.job)} ${JOBS[b.job].name.toLowerCase()}s across all ${b.name.toLowerCase()}s${L.eff?' · +'+L.eff+' output each':''}`:t.type==='signal'?`Warmth ${fireRadius()>10?'everywhere':fireRadius()+' tiles'} · ${Math.round(attraction()*100)}% chance of a survivor each night`:t.type==='relay'?`Mast up. ${S.contact?'Contact made.':S.day>=30?'Waiting for the voice.':'Contact on day 30: '+(30-S.day)+' days.'} +20% survivor pull.`:t.type==='pen'?`${S.creatures.length}/${penCap()} animals housed`:t.type==='stockpile'?`Holds ${L.cap} wood and ${L.cap} scrap${resCap('wood')>L.cap?' (a bigger one elsewhere sets the cap)':''}`:t.type==='shelter'?`${S.people.length}/${beds()} beds used`:''):`Blueprint: ${q?fl(q.bp):0}/${b.lv[0].bp} build points`));
+    body.appendChild(el('div','',t.done?(b.job?`${inJob(b.job).length}/${jobCap(b.job)} ${JOBS[b.job].name.toLowerCase()}s across all ${b.name.toLowerCase()}s${L.eff?' · +'+L.eff+' output each':''}`:t.type==='signal'?`Warmth ${fireRadius()>10?'everywhere':fireRadius()+' tiles'} · ${Math.round(attraction()*100)}% chance of a survivor each night`:t.type==='relay'?`Mast up. ${S.contact?'Contact made.':S.day>=30?'Waiting for the voice.':'Contact on day 30: '+(30-S.day)+' days.'} +20% survivor pull.`:t.type==='pen'?`${S.creatures.length}/${penCap()} animals housed`:t.type==='stockpile'?`Holds ${L.cap} of each supply${resCap('wood')>L.cap?' (a bigger one elsewhere sets the cap)':''}`:t.type==='shelter'?`${S.people.length}/${beds()} beds used`:''):`Blueprint: ${q?fl(q.bp):0}/${b.lv[0].bp} build points`));
+    if(t.done&&t.type!=='stockpile'){const k=UPKEEP.scrapKinds.includes(t.type)?'scrap':'wood';const per=t.type==='signal'?UPKEEP.fire:UPKEEP.lvl;body.appendChild(el('small',unkept(k)?'bad':'muted',`Upkeep ${EM[k]}${Math.round(per*t.lvl*10)/10} a day${unkept(k)?' · unpaid: working at half':''}`));}
     body.appendChild(el('div','muted',b.desc+(L.note?' Level '+t.lvl+': '+L.note+'.':'')));
     if(t.done&&t.type==='infirmary'){const w=S.people.filter(p=>p.wounded);body.appendChild(el('div','',w.length?`<b>Resting:</b> ${w.map(p=>`${p.name} (${p.wounded} day${p.wounded>1?'s':''})`).join(', ')}. Heals ${(S.people.some(p=>p.skill==='Medic'&&!p.wounded)?2:1)+L.heal} day${((S.people.some(p=>p.skill==='Medic'&&!p.wounded)?2:1)+L.heal)>1?'s':''} a night${S.people.some(p=>p.skill==='Medic'&&!p.wounded)?' (a medic is on hand)':''}.`:'Nobody is hurt.'));}
     if(!t.done){const qi=S.queue.findIndex(x=>x.key===sel);const r=el('div','row');if(qi>0)r.appendChild(btn('▲ Build this first','',()=>moveQueue(qi,0),'sm'));else if(qi===0)r.appendChild(el('span','good','▶ Builders are on this one'));r.appendChild(btn('✕ Cancel','full refund — nothing built yet',()=>cancelQueue(qi),'sm'));body.appendChild(r);}
@@ -2349,7 +2379,7 @@ function renderDrawer(){
   if(tab==='supply'){title.innerHTML=ico('basket')+'SUPPLIES';const tbl=el('div','tbl');
     let h='<table><tr><th>Supply</th><th class="n">Stock</th><th class="n">Made</th><th class="n">Eaten</th><th class="n">Days</th></tr>';
     Object.keys(RESN).forEach(k=>{if(LOOT.includes(k)){h+=`<tr><td>${EM[k]} ${RESN[k]}<br><small class="muted">salvaged from the infected</small></td><td class="n">${fl(S.res[k])}</td><td colspan="3"></td></tr>`;return;}const net=Math.round(((prod[k]||0)-(cons[k]||0))*10)/10;const dl=cons[k]?daysLeft(S.res[k],net):Infinity;const cap=resCap(k);const cls=(cap!==Infinity&&S.res[k]>=cap-0.5)?'bad':cons[k]&&dl<2?'bad':cons[k]&&dl<4?'warn':'';
-      h+=`<tr class="${cls}"><td>${EM[k]} ${RESN[k]}<br><small class="muted">${cap!==Infinity?'building · holds '+cap:(EATERS[k]||'building')}</small></td><td class="n">${fl(S.res[k])}${cap!==Infinity?'<small class="muted">/'+cap+'</small>':''}</td><td class="n good">+${prod[k]||0}</td><td class="n">${cons[k]?'-'+cons[k]:''}</td><td class="n">${cons[k]?(dl===Infinity?'∞':dl):''}</td></tr>`;});
+      h+=`<tr class="${cls}"><td>${EM[k]} ${RESN[k]}<br><small class="muted">${EATERS[k]||'building · upkeep '+(cons[k]||0)+' a day'}${cap!==Infinity?' · holds '+cap:''}</small></td><td class="n">${fl(S.res[k])}${cap!==Infinity?'<small class="muted">/'+cap+'</small>':''}</td><td class="n good">+${prod[k]||0}</td><td class="n">${cons[k]?'-'+cons[k]:''}</td><td class="n">${cons[k]?(dl===Infinity?'∞':dl):''}</td></tr>`;});
     h+=`<tr><td>${EM.research} Research</td><td class="n">${fl(S.res.research)}</td><td class="n good">+${prod.research}</td><td></td><td></td></tr>`;
     h+=`<tr><td>${EM.morale} Morale<br><small class="muted">leave at 0; hungry -2, medic +1; births need 7+</small></td><td class="n ${S.morale<=2?'bad':''}">${S.morale}/10</td><td colspan="3"></td></tr></table>`;tbl.innerHTML=h;body.appendChild(tbl);
     body.appendChild(el('div','muted',`${season().em} ${season().n}: ${season().d}. Meals at midnight. People eat 1 greens a day; cold-blooded animals eat 1 of their chain every 2 days. Every built gathering building adds 1 a day on its own. Scouts without a gate bring back half.`));
@@ -2373,7 +2403,7 @@ function renderDrawer(){
       <li>Time runs on its own: 24 hours a day, about a minute at normal speed; 10 days a season. Space pauses; 1 / 2 / 3 set speed; M mutes. The game pauses itself when something needs you.</li>
       <li>You are the leader. Place blueprints, upgrade buildings (click one), drag people between jobs, drag animals onto walls. Everyone without a job builds. Builders work the top of the queue first and repair walls when idle; repairs draw wood and scrap as they go, and <b>Repair first</b> on a wall card puts that wall ahead of the queue.</li>
       <li><b>Three posts.</b> Wall animals bite over the wall and slide along it to where the herd is pressing. Patrol animals roam inside and catch anything that gets through (the pen's level sets how many). Sky birds fly out past the wall in sorties and nothing on the ground can reach them; a bat can. A <b>Bastion</b> on a wall holds Soldiers, who fire from it and never fight in close; higher bastions and better arms come from research.</li>
-      <li><b>Supplies.</b> Wood and scrap cap at ${BASE_CAP} each until a Stockpile is built (the biggest one sets the cap); anything over rots by morning. Animals on a wall, the patrol or in the sky do not count against the pen.</li>
+      <li><b>Supplies.</b> Wood, scrap and food cap at ${BASE_CAP} each until a Stockpile is built (the biggest one sets the cap); anything over rots or spoils by morning. <b>Upkeep:</b> every standing building draws ${UPKEEP.lvl} wood a day per level (scrap for the lab, workshop, relay, infirmary, trading post and bastions; the fire burns ${UPKEEP.fire}); unpaid, those buildings work at half until the pile recovers. Animals on a wall, the patrol or in the sky do not count against the pen.</li>
       <li>${ico('str',1)} Strength: building, guarding, chopping, scrapping. ${ico('spd',1)} Speed: scouting, trapping, repairs. ${ico('int',1)} Intelligence: farming, bugs, eggs, research. Working a job trains its stat.</li>
       <li>Meals at midnight. People eat greens. Animals eat their chain every other day: ${ico('greens',1)} lizards and turtles, ${aico('mouse',24)} snakes and birds of prey, ${ico('insects',1)} frogs and small birds.</li>
       <li>Seasons: spring and summer are breeding seasons. Autumn is for stocking up. Winter halves gardens, makes hordes heavier and slower, and cold-blooded animals outside the fire's warmth fight at half strength. Upgrade the one fire to widen its warmth.</li>
@@ -2633,6 +2663,6 @@ if(savedGame){S=migrate(savedGame);render();boot();}
 else{boot();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
-window.__AG={get S(){return S},TUTORIAL,showTitle,resCap,enforceCaps,BASE_CAP,repairCostPerHp,repairAffordable,BLD,get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,bastionCrew,bastionLvl,bastionSlots,BASTION,queueExtra,coldFactor,wallMax,patrolCap,isSky,skies,roostPos,earlyEyes,guardsOf,SPECIES,addCreature,rollHorde,hordeStrength,wallSlots,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
+window.__AG={get S(){return S},TUTORIAL,showTitle,HORDE_RAMP,hatcheryPos,resCap,upkeep,UPKEEP,unkept,CAPPED,consumption,production,enforceCaps,BASE_CAP,repairCostPerHp,repairAffordable,BLD,get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,bastionCrew,bastionLvl,bastionSlots,BASTION,queueExtra,coldFactor,wallMax,patrolCap,isSky,skies,roostPos,earlyEyes,guardsOf,SPECIES,addCreature,rollHorde,hordeStrength,wallSlots,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
 })();
 </script>
