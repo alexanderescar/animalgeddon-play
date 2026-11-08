@@ -786,7 +786,7 @@ function musicMaster(){const a=ac();if(!a)return null;if(!mus.master){mus.master
 // muted and the song comes from the audio engine, so the loop is driven by a clean .ogg rather
 // than by whatever is muxed into the MP4 — set useVideoAudio if the film's own track should be
 // used instead, in which case the loop can only start when the film ends.
-const OPENING={src:'assets/opening.mp4',track:'opening1',useVideoAudio:true};   // the film carries its own song; the menu theme starts when it ends
+const OPENING={src:'assets/opening.mp4',track:'opening1',useVideoAudio:true};   // the film's own track is sound effects only; the song (opening1) plays over it and on into the mode picker
 function loadTrack(id){if(mus.loads[id])return mus.loads[id];mus.loads[id]=(async()=>{try{const r=await fetch(TRACKS[id].f);if(!r.ok)throw 0;const ab=await r.arrayBuffer();mus.bufs[id]=await AC.decodeAudioData(ab);}catch(e){mus.bufs[id]=false;}return mus.bufs[id];})();return mus.loads[id];}
 function mnote(ch,entry,t,stepLen){const a=AC;const note=Array.isArray(entry)?entry[0]:entry;const len=(Array.isArray(entry)?entry[1]:1)*stepLen*0.9;
   if(ch.w==='hat'){const n=a.createBufferSource();const b=a.createBuffer(1,a.sampleRate*0.03,a.sampleRate);const d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length);n.buffer=b;const g=a.createGain();g.gain.value=ch.v;const f=a.createBiquadFilter();f.type='highpass';f.frequency.value=6000;n.connect(f);f.connect(g);g.connect(mus.gain);n.start(t);return;}
@@ -845,7 +845,7 @@ function updateMusic(){if(!AC)return;musicMaster();if(document.hidden){playMusic
   // the half-minute of title screen that follows, and then the menu theme, which is written to
   // loop, takes over for as long as the player sits there. In-game menus use the menu theme too.
   if(mus.ended===OPENING.track)mus.openingDone=true;
-  if(uiModal==='start'||(uiModal==='opening'&&OPENING.useVideoAudio)){playMusic(null);return;}
+  if(uiModal==='start'){playMusic(null);return;}      // silent: no gesture has happened yet, so nothing could play anyway
   const titleish=!S||uiModal==='title'||uiModal==='opening';
   const want=titleish?(mus.openingDone?'menu':OPENING.track):uiModal?'menu':S.over?'lose':(S.battle&&S.battle.kind!=='prowl')?'horde':S.playWin?'win':night?'night':'day';
   if(want==='lose'&&mus.ended==='lose'&&mus.id===null)return;
@@ -2387,12 +2387,11 @@ function showOpening(gestured){
   let done=false,gated=false;
   const finish=()=>{if(done)return;done=true;
     vid.pause();ov.remove();
-    if(OPENING.useVideoAudio){ac();mus.openingDone=true;}            // the film had its own song; the menu theme takes over
-    uiModal=null;$('titlebg').hidden=true;showTitle();};              // (without video audio the track is already looping; showTitle leaves it alone)
+    ac();uiModal=null;$('titlebg').hidden=true;showTitle();};        // the song is still playing; showTitle leaves it alone, and the menu theme follows when it ends
   const gate=()=>{
     if(gated)return;gated=true;
     ac();                                    // unlock audio on the gesture
-    if(!OPENING.useVideoAudio){uiModal='opening';updateMusic();}
+    uiModal='opening';updateMusic();                                 // start the song with the film; the film's own effects track plays under it
     const g=ov.querySelector('.openingGate');if(g)g.remove();
     ov.appendChild(vid);
     ov.appendChild(skip);
