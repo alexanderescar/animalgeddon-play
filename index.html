@@ -24,7 +24,7 @@ input.rename{font:700 20px var(--body);padding:6px 10px;border:3px solid #7a4a24
 .tt{position:fixed;z-index:50;pointer-events:none;background:var(--parch);color:var(--ink);border:3px solid #7a4a24;box-shadow:3px 3px 0 rgba(0,0,0,.5);padding:4px 9px;font:15px var(--body);max-width:300px;line-height:1.3}
 .roster{margin-top:6px;display:flex;flex-direction:column;gap:3px}.rrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:3px 6px;background:rgba(120,80,40,.10);border:1px solid rgba(120,80,40,.3)}.rrow .rn{flex:1 1 150px}.rrow .btn.sm,.rrow button{font-size:13px}
 .px,.ic,.asp,.sp{image-rendering:pixelated}
-.app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding-inline:14px;padding-block:0 8px;gap:8px;box-sizing:border-box}
+.app{position:relative;height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding-inline:14px;padding-block:0 8px;gap:8px;box-sizing:border-box}
 /* HUD: one dark wood strip, icons + numbers */
 .hud{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;background:linear-gradient(#2b1a0e,#1b1109);border-bottom:4px solid #4a2a14;padding:6px 12px;margin-inline:-14px;padding-inline:18px}
 .hud .title{font-family:var(--display);font-size:12px;color:var(--amber);letter-spacing:1px;margin-right:6px;text-shadow:2px 2px 0 #000}
@@ -52,7 +52,7 @@ input.rename{font:700 20px var(--body);padding:6px 10px;border:3px solid #7a4a24
 .main{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:minmax(0,1fr);gap:10px;min-height:0}   /* the row fills .main, so the stage reaches the bottom of tall windows instead of stopping at the canvas's 960px */
 .stage{position:relative;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;background:#0b100a;border:4px solid #2a1a0e;box-shadow:0 0 0 2px #0a0f0a;overflow:hidden}
 canvas#map{image-rendering:pixelated;display:block;max-width:100%;max-height:100%;cursor:pointer;touch-action:none}
-.tut{position:absolute;left:10px;top:10px;max-width:360px;background:var(--parch);color:var(--ink);border:3px solid #7a4a24;box-shadow:4px 4px 0 rgba(0,0,0,.5);padding:8px 12px;font-size:16px;line-height:1.35;z-index:3}.tut b{display:block;color:var(--ink-amber);letter-spacing:1px;font-size:13px;margin-bottom:2px}.tut .tb{display:flex;gap:8px;margin-top:6px;align-items:center}.tut button{font:700 14px var(--body);background:#7a4a24;color:#f6e9cf;border:0;padding:3px 10px;cursor:pointer}.tut .done{color:var(--ink-good);font-weight:700}
+.tut{position:absolute;left:10px;top:10px;max-width:360px;z-index:40;background:var(--parch);color:var(--ink);border:3px solid #7a4a24;box-shadow:4px 4px 0 rgba(0,0,0,.5);padding:8px 12px;font-size:16px;line-height:1.35;z-index:3}.tut>b{display:block;color:var(--ink-amber);letter-spacing:1px;font-size:13px;margin-bottom:2px}.tut .tb{display:flex;gap:8px;margin-top:6px;align-items:center}.tut button{font:700 14px var(--body);background:#7a4a24;color:#f6e9cf;border:0;padding:3px 10px;cursor:pointer}.tut .done{color:var(--ink-good);font-weight:700}
 .advisor{position:absolute;left:10px;right:10px;bottom:10px;border:3px solid #7a4a24;background:rgba(27,17,9,.92);padding:7px 12px;display:flex;gap:10px;align-items:center;pointer-events:none;font-size:19px}
 .advisor b{font-family:var(--body);font-size:17px;font-weight:700;letter-spacing:1px;color:var(--amber);white-space:nowrap}
 .advisor.fight{border-color:#b33a2c;background:rgba(42,14,10,.94)} .advisor.fight b{color:#ff8a7a}
@@ -97,6 +97,17 @@ canvas#map{image-rendering:pixelated;display:block;max-width:100%;max-height:100
 .modal.titlemode .box.wide::-webkit-scrollbar{display:none}
 /* short windows (laptops): a smaller card, so it stays below the lettering in the picture */
 @media (max-height:840px){.modal.titlemode .box.wide{transform:scale(.82);transform-origin:bottom center;margin-top:-18%}}
+/* the tutorial card points at things: a small arrow on the side facing its target */
+.tut::after{content:'';position:absolute;width:0;height:0;border:12px solid transparent;display:none}
+.tut.arr-down::after{display:block;left:var(--ax,50%);bottom:-24px;margin-left:-12px;border-top-color:#7a4a24}
+.tut.arr-up::after{display:block;left:var(--ax,50%);top:-24px;margin-left:-12px;border-bottom-color:#7a4a24}
+.tut.arr-right::after{display:block;top:var(--ay,50%);right:-24px;margin-top:-12px;border-left-color:#7a4a24}
+.tut.arr-left::after{display:block;top:var(--ay,50%);left:-24px;margin-top:-12px;border-right-color:#7a4a24}
+/* the control the step is about pulses; a ring marks a spot on the map */
+.tut-target{outline:3px solid #f0b64a;outline-offset:3px;animation:tutPulse 1.1s ease-in-out infinite;position:relative;z-index:30}
+@keyframes tutPulse{0%,100%{outline-color:#f0b64a;box-shadow:0 0 0 0 rgba(240,182,74,.0)}50%{outline-color:#fff1c8;box-shadow:0 0 0 6px rgba(240,182,74,.35)}}
+.tut-ring{position:absolute;border:3px solid #f0b64a;border-radius:50%;pointer-events:none;z-index:35;animation:tutRing 1.3s ease-out infinite;box-shadow:0 0 0 2px rgba(0,0,0,.5)}
+@keyframes tutRing{0%{transform:scale(.85);opacity:1}100%{transform:scale(1.25);opacity:.15}}
 /* the title and start screens are not the game: no HUD, no tab bar, the stage fills the window */
 body.ontitle .hud,body.ontitle .bar{display:none}
 /* each piece is pinned to its row: a hidden HUD leaves no grid item, and without this the stage would slide up into the HUD's row and leave the 1fr row empty below it */
@@ -230,7 +241,7 @@ details{color:var(--ink-dim)} summary{cursor:pointer;color:var(--ink)} details u
       <canvas id="map" width="1280" height="960" aria-label="Home base"></canvas>
       <div class="tip" id="tip"></div>
       <div class="advisor" id="advisor"></div>
-      <div class="tut" id="tut" hidden></div>
+
       <div class="titlebg" id="titlebg" hidden><i></i><canvas id="embers"></canvas><div class="pressany">PRESS ANY KEY TO START</div></div>
       <div class="modal" id="modal" hidden></div>
     </div>
@@ -241,6 +252,8 @@ details{color:var(--ink-dim)} summary{cursor:pointer;color:var(--ink)} details u
   </div>
 
   <div class="bar" id="bar"></div>
+  <div class="tut" id="tut" hidden></div>
+  <div class="tut-ring" id="tutRing0" hidden></div><div class="tut-ring" id="tutRing1" hidden></div>
 </div>
 
 <script>
@@ -1875,6 +1888,8 @@ function draw(ts){
   if(running&&S.queue.length&&inJob('builder').length){hammerT-=dtReal*S.speed;if(hammerT<=0){hammerT=1.6+Math.random()*1.4;sfx('hammer');}}
   if(cam.uz>1.001){cam.z+=(cam.uz-cam.z)*0.25;cam.tx+=(cam.ux-cam.tx)*0.25;cam.ty+=(cam.uy-cam.ty)*0.25;}
   else{const ct=camTarget();cam.z+=(ct.z-cam.z)*0.04;const ttx=Math.min(0,Math.max(cv.width*(1-cam.z),ct.fx*(1-cam.z))),tty=Math.min(0,Math.max(cv.height*(1-cam.z),ct.fy*(1-cam.z)));cam.tx+=(ttx-cam.tx)*0.04;cam.ty+=(tty-cam.ty)*0.04;}
+  // the tutorial's map rings follow the camera
+  if(S&&S.tut&&S.tut.on&&!uiModal&&!$('tutRing0').hidden&&(Math.abs(cam.z-tutCam.z)>0.002||Math.abs(cam.tx-tutCam.tx)>0.5||Math.abs(cam.ty-tutCam.ty)>0.5)){tutCam={z:cam.z,tx:cam.tx,ty:cam.ty};const st=TUTORIAL[S.tut.step];if(st)aimTut(st);}
   ctx.save();ctx.translate(cam.tx,cam.ty);ctx.scale(cam.z,cam.z);if(shake>0&&CFG.shake){ctx.translate((Math.random()-0.5)*shake,(Math.random()-0.5)*shake);shake=Math.max(0,shake-dtReal*30);}
   ctx.fillStyle='#141c12';ctx.fillRect(-20,-20,cv.width+40,cv.height+40);
   const fr=fronts();const fireT=fire();
@@ -2073,27 +2088,62 @@ function draw(ts){
   requestAnimationFrame(draw);
 }
 const TUTORIAL=[
-  {t:'Time',b:'The game is paused. Press ▶ (or the space bar) to start the clock. A day lasts about a minute; ▶▶ and ▶▶▶ run faster.',ok:()=>S.speed>0||S.day>1},
-  {t:'Food first',b:'Open BUILD and place a Garden on an empty tile inside the fence. Builders put it up by themselves.',ok:()=>builtOf('garden').length>0||S.queue.some(q=>q.kind==='tile'&&S.tiles[q.key]&&S.tiles[q.key].type==='garden')},
-  {t:'Put someone to work',b:'Open PEOPLE and drag a name onto Farmer. A building does nothing until someone works it.',ok:()=>inJob('farmer').length>0},
-  {t:'The wall',b:'Open WALLS and build the east wall. The herd comes from the east at dusk on horde days (the WALLS tab shows which day).',ok:()=>S.walls.E.lvl>0||S.queue.some(q=>q.kind==='wall')},
-  {t:'Post an animal',b:'On the map, drag an animal from the pen onto the east wall. Animals on a wall bite anything that reaches it; animals in the pen heal and breed.',ok:()=>S.creatures.some(c=>c.post==='guard')},
-  {t:'Three kinds of post',b:'Animals serve in three places. <b>Wall</b>: bite over the wall. <b>Patrol</b>: roam inside and catch anything that gets in. <b>Sky</b>: birds only; they fly out to meet the herd and nothing on the ground can touch them. Open ANIMALS and send your pigeon to the Sky.',ok:()=>S.creatures.some(c=>c.post==='sky')||!S.creatures.some(c=>isSky(c))},
-  {t:'Soldiers',b:'Open WALLS and build a Bastion on the east wall. Drag a person onto Soldier: soldiers fire from the bastion and never go down to the herd. Research unlocks higher bastions, more soldiers, and better arms.',ok:()=>bastionLvl('E')>0||S.queue.some(q=>q.kind==='bastion')},
-  {t:'Eggs',b:'Click the pen and put two animals of one line in its nest: they lay an egg every few days. A Keeper at the Hatchery makes eggs hatch. Drag someone onto Keeper (upgrade the hatchery for more keeper slots).',ok:()=>inJob('keeper').length>0||S.creatures.length>=5},
-  {t:'Stockpile',b:`The camp can only keep ${BASE_CAP} of each supply in the open (wood, scrap, greens, rodents, insects); the rest rots or spoils by morning. Build a Stockpile to hold more, and upgrade it as the camps grow. Every other building burns a little wood or scrap a day to stay standing; its card shows how much.`,ok:()=>builtOf('stockpile').length>0||S.queue.some(q=>q.kind==='tile'&&S.tiles[q.key]&&S.tiles[q.key].type==='stockpile')},
-  {t:'The signal fire',b:'Build a Signal fire. It draws survivors from the forest and keeps cold-blooded animals warm in winter.',ok:()=>!!fire()},
-  {t:'The first horde',b:'Pause any time during a fight (space). Drag animals between walls. If a wall breaks, a gap opens; your animals fall back to hold it and builders patch it afterwards. Repairs cost wood and scrap. Click a wall and choose Repair first to put it ahead of the build queue.',ok:()=>!!S.lastHorde},
-  {t:'Research',b:'Build a Research lab and add a Researcher. Research unlocks stronger walls, second and third animal forms, and better production.',ok:()=>S.done.length>0},
-  {t:'The Workshop',b:'Dead infected drop hide and bone. From day 6 you can build a Workshop; a Crafter turns the loot into armour and weapons you equip on animals in the ANIMALS tab.',ok:()=>builtOf('workshop').length>0||S.day>=20},
-  {t:'The radio',b:'Day 15: the Radio relay unlocks. Build it and keep it standing until day 30 to make contact. That is the goal. Good luck, leader.',ok:()=>S.day>=16},
+  {t:'Time',b:'The game is paused. Press ▶ (or the space bar) to start the clock. A day lasts about a minute; ▶▶ and ▶▶▶ run faster.',ok:()=>S.speed>0||S.day>1,at:()=>[{id:'sp1'}]},
+  {t:'Food first',b:'Open BUILD and place a Garden on an empty tile inside the fence. Builders put it up by themselves.',ok:()=>builtOf('garden').length>0||S.queue.some(q=>q.kind==='tile'&&S.tiles[q.key]&&S.tiles[q.key].type==='garden'),at:()=>buildSel==='garden'?[{map:[{free:1}]}]:[{sel:'[data-build=garden]'},{tab:'build'}]},
+  {t:'Put someone to work',b:'Open PEOPLE and drag a name onto Farmer. A building does nothing until someone works it.',ok:()=>inJob('farmer').length>0,at:()=>[{sel:'[data-job=farmer]'},{tab:'people'}]},
+  {t:'The wall',b:'Open WALLS and build the east wall. The herd comes from the east at dusk on horde days (the WALLS tab shows which day).',ok:()=>S.walls.E.lvl>0||S.queue.some(q=>q.kind==='wall'),at:()=>[{sel:'[data-wallbuild=E]'},{tab:'walls'}]},
+  {t:'Post an animal',b:'On the map, drag an animal from the pen onto the east wall. Animals on a wall bite anything that reaches it; animals in the pen heal and breed.',ok:()=>S.creatures.some(c=>c.post==='guard'),at:()=>[{map:[{tile:'pen'},{wall:'E'}]}]},
+  {t:'Three kinds of post',b:'Animals serve in three places. <b>Wall</b>: bite over the wall. <b>Patrol</b>: roam inside and catch anything that gets in. <b>Sky</b>: birds only; they fly out to meet the herd and nothing on the ground can touch them. Open ANIMALS and send your pigeon to the Sky.',ok:()=>S.creatures.some(c=>c.post==='sky')||!S.creatures.some(c=>isSky(c)),at:()=>[{sel:'[data-post=sky]'},{sel:'[data-skyrow]'},{tab:'animals'}]},
+  {t:'Soldiers',b:'Open WALLS and build a Bastion on the east wall. Drag a person onto Soldier: soldiers fire from the bastion and never go down to the herd. Research unlocks higher bastions, more soldiers, and better arms.',ok:()=>bastionLvl('E')>0||S.queue.some(q=>q.kind==='bastion'),at:()=>[{sel:'[data-bastion=E]'},{tab:'walls'}]},
+  {t:'Eggs',b:'Click the pen and put two animals of one line in its nest: they lay an egg every few days. A Keeper at the Hatchery makes eggs hatch. Drag someone onto Keeper (upgrade the hatchery for more keeper slots).',ok:()=>inJob('keeper').length>0||S.creatures.length>=5,at:()=>nests().length?[{sel:'[data-job=keeper]'},{tab:'people'}]:[{sel:'[data-nest]'},{map:[{tile:'pen'}]}]},
+  {t:'Stockpile',b:`The camp can only keep ${BASE_CAP} of each supply in the open (wood, scrap, greens, rodents, insects); the rest rots or spoils by morning. Build a Stockpile to hold more, and upgrade it as the camps grow. Every other building burns a little wood or scrap a day to stay standing; its card shows how much.`,ok:()=>builtOf('stockpile').length>0||S.queue.some(q=>q.kind==='tile'&&S.tiles[q.key]&&S.tiles[q.key].type==='stockpile'),at:()=>buildSel==='stockpile'?[{map:[{free:1}]}]:[{sel:'[data-build=stockpile]'},{tab:'build'}]},
+  {t:'The signal fire',b:'Build a Signal fire. It draws survivors from the forest and keeps cold-blooded animals warm in winter.',ok:()=>!!fire(),at:()=>buildSel==='signal'?[{map:[{free:1}]}]:[{sel:'[data-build=signal]'},{tab:'build'}]},
+  {t:'The first horde',b:'Pause any time during a fight (space). Drag animals between walls. If a wall breaks, a gap opens; your animals fall back to hold it and builders patch it afterwards. Repairs cost wood and scrap. Click a wall and choose Repair first to put it ahead of the build queue.',ok:()=>!!S.lastHorde,at:()=>S.battle?[{map:[{wall:'E'}]}]:[{tab:'walls'}]},
+  {t:'Research',b:'Build a Research lab and add a Researcher. Research unlocks stronger walls, second and third animal forms, and better production.',ok:()=>S.done.length>0,at:()=>builtOf('lab').length?[{sel:'[data-job=researcher]'},{tab:'people'}]:buildSel==='lab'?[{map:[{free:1}]}]:[{sel:'[data-build=lab]'},{tab:'build'}]},
+  {t:'The Workshop',b:'Dead infected drop hide and bone. From day 6 you can build a Workshop; a Crafter turns the loot into armour and weapons you equip on animals in the ANIMALS tab.',ok:()=>builtOf('workshop').length>0||S.day>=20,at:()=>S.day<6?[]:buildSel==='workshop'?[{map:[{free:1}]}]:[{sel:'[data-build=workshop]'},{tab:'build'}]},
+  {t:'The radio',b:'Day 15: the Radio relay unlocks. Build it and keep it standing until day 30 to make contact. That is the goal. Good luck, leader.',ok:()=>S.day>=16,at:()=>S.day<15?[]:buildSel==='relay'?[{map:[{free:1}]}]:[{sel:'[data-build=relay]'},{tab:'build'}]},
 ];
-function renderTut(){const t=$('tut');if(!S||!S.tut||!S.tut.on||uiModal||S.over){t.hidden=true;return;}
+function renderTut(){const t=$('tut');if(!S||!S.tut||!S.tut.on||uiModal||S.over){t.hidden=true;if(tutMarked.length||!$('tutRing0').hidden)clearTutMarks();return;}
   while(S.tut.step<TUTORIAL.length&&TUTORIAL[S.tut.step].ok()){S.tut.step++;S.tut.justDone=S.tut.step;S.tut.doneT=performance.now();}
   if(S.tut.step>=TUTORIAL.length){if(S.tut.doneT&&performance.now()-S.tut.doneT<6000){t.hidden=false;t.innerHTML=`<b>TUTORIAL DONE</b><span class="done">You know the basics. The advisor bar at the bottom keeps nagging.</span>`;}else{t.hidden=true;S.tut.on=false;}return;}
   const st=TUTORIAL[S.tut.step];t.hidden=false;t.innerHTML=`<b>TUTORIAL ${S.tut.step+1}/${TUTORIAL.length} · ${st.t.toUpperCase()}</b>${st.b}<div class="tb"><button id="tutSkip">Skip step</button><button id="tutOff">Turn off</button></div>`;
-  t.querySelector('#tutSkip').onclick=()=>{S.tut.step++;save();renderTut();};t.querySelector('#tutOff').onclick=()=>{S.tut.on=false;CFG.tutorial=false;save();renderTut();};}
-function renderLive(){renderTut();updateMusic();if(tab==='walls'||tab==='wall'||tab==='animals'||tab==='animal')renderDrawer();renderHud();const [tag,msg]=advice();const ad=$('advisor');ad.innerHTML=`<b>${tag}</b><span>${msg}</span>`;ad.classList.toggle('fight',!!S.battle);}
+  t.querySelector('#tutSkip').onclick=()=>{S.tut.step++;save();renderTut();};t.querySelector('#tutOff').onclick=()=>{S.tut.on=false;CFG.tutorial=false;save();renderTut();};
+  aimTut(st);}
+// The card goes where the player should be looking. A step lists places in order of preference:
+// {sel} a control inside the open drawer, {tab} its tab button in the bar, {id} a HUD control,
+// {map:[...]} spots on the map ({tile:type} a building, {wall:dir} a wall, {free:1} an empty tile
+// to build on). The first that is on screen wins: the card docks beside it with an arrow, the
+// control pulses, map spots get a ring. With nothing to point at, the card sits top-left as before.
+let tutMarked=[],tutCam={z:1,tx:0,ty:0};
+function clearTutMarks(){tutMarked.forEach(e=>e.classList.remove('tut-target'));tutMarked=[];$('tutRing0').hidden=true;$('tutRing1').hidden=true;}
+function worldToApp(wx,wy){const r=cv.getBoundingClientRect(),a=$('tut').parentElement.getBoundingClientRect();const sx=wx*cam.z+cam.tx,sy=wy*cam.z+cam.ty;return {x:r.left-a.left+sx/cv.width*r.width,y:r.top-a.top+sy/cv.height*r.height,s:r.width/cv.width*cam.z};}
+function freeTileNear(){const pen=Object.values(S.tiles).find(t=>t.type==='pen')||{x:7,y:6};let best=null,bd=1e9;for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){if(!isOpen(x,y)||tileAt(x,y)||(S.roads&&S.roads[K(x,y)]))continue;const d=Math.abs(x-pen.x)+Math.abs(y-pen.y);if(d&&d<bd){bd=d;best={x,y};}}return best;}
+function aimTut(st){const t=$('tut');const prev=tutMarked.slice();tutMarked=[];$('tutRing0').hidden=true;$('tutRing1').hidden=true;t.className='tut';t.style.left='';t.style.top='';t.style.removeProperty('--ax');t.style.removeProperty('--ay');
+  const app=t.parentElement.getBoundingClientRect();const rel=r=>({l:r.left-app.left,t:r.top-app.top,r:r.right-app.left,b:r.bottom-app.top,w:r.width,h:r.height});
+  const place=(l,tp)=>{const W=t.offsetWidth,H=t.offsetHeight;l=Math.max(6,Math.min(app.width-W-6,l));tp=Math.max(6,Math.min(app.height-H-6,tp));t.style.left=l+'px';t.style.top=tp+'px';return {l,tp,W,H};};
+  const want=st.at?st.at():[];
+  for(const w of want){
+    if(w.sel||w.tab||w.id){const el=w.sel?($('drawer').hidden?null:document.querySelector('#drawer '+w.sel)):w.tab?document.querySelector(`#bar [data-tab="${w.tab}"]`):document.getElementById(w.id);
+      if(!el||el.offsetParent===null)continue;el.classList.add('tut-target');tutMarked.push(el);prev.forEach(e=>{if(e!==el)e.classList.remove('tut-target');});const R=rel(el.getBoundingClientRect());
+      if(w.tab){const p=place(R.l+R.w/2-t.offsetWidth/2,R.t-t.offsetHeight-26);t.classList.add('arr-down');t.style.setProperty('--ax',(R.l+R.w/2-p.l)+'px');}
+      else if(w.id){const p=place(R.l+R.w/2-t.offsetWidth/2,R.b+26);t.classList.add('arr-up');t.style.setProperty('--ax',(R.l+R.w/2-p.l)+'px');}
+      else{const p=place(R.l-t.offsetWidth-28,R.t+R.h/2-t.offsetHeight/2);t.classList.add('arr-right');t.style.setProperty('--ay',(R.t+R.h/2-p.tp)+'px');}
+      return;}
+    if(w.map){prev.forEach(e=>e.classList.remove('tut-target'));let i=0,first=null;for(const m of w.map){let cx,cy,rad;
+        if(m.tile){const tl=Object.values(S.tiles).find(x=>x.type===m.tile);if(!tl)continue;cx=tl.x*T+T/2;cy=tl.y*T+T/2;rad=T*0.75;}
+        else if(m.wall){const [x,y,ww,hh]=wallRect(m.wall);cx=x+ww/2;cy=y+hh/2;rad=Math.max(ww,hh)/2+14;}
+        else if(m.free){const f=freeTileNear();if(!f)continue;cx=f.x*T+T/2;cy=f.y*T+T/2;rad=T*0.75;}
+        const P=worldToApp(cx,cy);const ring=$('tutRing'+i);const pr=rad*P.s;ring.hidden=false;ring.style.left=(P.x-pr)+'px';ring.style.top=(P.y-pr)+'px';ring.style.width=ring.style.height=(pr*2)+'px';
+        if(!first)first={x:P.x,y:P.y,r:pr};if(++i>1)break;}
+      if(!first)continue;
+      const W=t.offsetWidth,H=t.offsetHeight;const leftRoom=first.x-first.r-28-W>=6;
+      const p=place(leftRoom?first.x-first.r-28-W:first.x+first.r+28,first.y-H/2);t.classList.add(leftRoom?'arr-right':'arr-left');t.style.setProperty('--ay',(first.y-p.tp)+'px');
+      return;}
+  }
+  // nothing on screen to point at: the old spot, top-left of the map
+  prev.forEach(e=>e.classList.remove('tut-target'));const st0=rel(document.querySelector('.stage').getBoundingClientRect());place(st0.l+10,st0.t+10);
+}
+function renderLive(){updateMusic();if(tab==='walls'||tab==='wall'||tab==='animals'||tab==='animal')renderDrawer();renderTut();renderHud();const [tag,msg]=advice();const ad=$('advisor');ad.innerHTML=`<b>${tag}</b><span>${msg}</span>`;ad.classList.toggle('fight',!!S.battle);}
 
 /* ---------- UI ---------- */
 function log(msg,cls=''){S.log.push([msg,cls]);if(S.log.length>150)S.log.shift();if(tab==='log')renderDrawer();}
@@ -2101,8 +2151,8 @@ function btn(label,sub,on,cls=''){const b=document.createElement('button');b.cla
 const el=(tag,cls,html)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;};
 const statBar=(p,s)=>{let h=`<span class="stat" title="${STATS[s]}">${EM[s]}`;for(let i=1;i<=5;i++)h+=`<i class="${i<=p.st[s]?'on':(i===p.st[s]+1&&p.xp[s]>0?'xp':'')}"></i>`;return h+`</span>`;};
 const TABS=[['build','builder','Build'],['people','people','People'],['animals','animals','Animals'],['dex','journal','Animaldex'],['walls','wall','Walls'],['research','research','Research'],['supply','basket','Supplies'],['log','scroll','Log']];
-function openTab(t,arg){tab=t;tabArg=arg||null;pickChip=null;pickSlot=null;$('drawer').hidden=false;renderDrawer();}
-function closeDrawer(){tab=null;tabArg=null;$('drawer').hidden=true;buildSel=null;renderBar();}
+function openTab(t,arg){tab=t;tabArg=arg||null;pickChip=null;pickSlot=null;$('drawer').hidden=false;renderDrawer();if(S&&S.tut)renderTut();}
+function closeDrawer(){tab=null;tabArg=null;$('drawer').hidden=true;buildSel=null;renderBar();if(S&&S.tut)renderTut();}
 $('drawerClose').onclick=closeDrawer;
 
 function renderHud(){
@@ -2127,7 +2177,7 @@ function renderHud(){
 function renderBar(){
   const bar=$('bar');bar.innerHTML='';if(!S)return;const nh=nextHordeDay();
   const counts={build:S.queue.length?`${S.queue.length} queued`:'',dex:`${S.stats.seen.length}/${Object.keys(SPECIES).length} raised`,people:`${S.people.length} · ${inJob('builder').length} building`,animals:`${S.creatures.filter(c=>c.post==='guard').length} on walls · ${S.eggs.length} eggs`,walls:S.battle?`${S.battle.enemies.length} attacking`:`day ${nh} · herd ${hordeStrength(nh)}`,research:`${fl(S.res.research)} pts`,supply:'',log:''};
-  TABS.forEach(([id,em,name])=>{const on=tab===id||(id==='walls'&&tab==='wall');const b=el('button','btn'+(on?' sel':'')+(id==='walls'&&(S.battle||fronts().some(f=>!S.walls[f].lvl))?' alert':''),`${ico(em)}${name}<span class="n">${counts[id]||' '}</span>`);b.onclick=()=>{ac();on?closeDrawer():openTab(id);};bar.appendChild(b);});
+  TABS.forEach(([id,em,name])=>{const on=tab===id||(id==='walls'&&tab==='wall');const b=el('button','btn'+(on?' sel':'')+(id==='walls'&&(S.battle||fronts().some(f=>!S.walls[f].lvl))?' alert':''),`${ico(em)}${name}<span class="n">${counts[id]||' '}</span>`);b.dataset.tab=id;b.onclick=()=>{ac();on?closeDrawer():openTab(id);};bar.appendChild(b);});
 }
 let lastTab=null;
 function queueList(body){
@@ -2149,7 +2199,7 @@ function wallCard(dir,focus){
   if(w.lvl)box.appendChild(el('div','bar2 hp '+(w.hp/wallMax(w.lvl)<.4?'low':''),`<i style="width:${Math.round(w.hp/wallMax(w.lvl)*100)}%"></i>`));
   box.appendChild(el('small','',w.lvl?`${L.name}${w.broken?' · <span class="bad">GAP: builders patch it after the fight</span>':''}${S.gates[dir]?' · '+EM.gate+' gate':''}${bastionLvl(dir)?' · '+EM.tower+' '+BASTION[bastionLvl(dir)-1].name.toLowerCase()+' ('+bastionSlots(dir)+' soldier'+(bastionSlots(dir)>1?'s':'')+')':''} · ${L.slots} animal slots`:front?'The herd can walk straight in. 3 animal slots in the open.':'Forest on this side. Safe until you clear it.'));
   if(q)box.appendChild(el('small','warn',`${WALL_LVL[q.lvl].name} ${fl(q.bp)}/${q.need} bp`));
-  else if(nx&&(front||w.lvl)){const locked=nx.req&&!hasR(nx.req);const b=btn(w.lvl?'Upgrade wall':'Build wall',`${nx.name} · ${costStr(nx.cost)} · ${nx.bp} bp · ${nx.hp} HP · ${nx.slots} slots${locked?' · needs research':''}`,()=>queueWall(dir));b.disabled=locked||!canPay(nx.cost)||S.over;box.appendChild(b);}
+  else if(nx&&(front||w.lvl)){const locked=nx.req&&!hasR(nx.req);const b=btn(w.lvl?'Upgrade wall':'Build wall',`${nx.name} · ${costStr(nx.cost)} · ${nx.bp} bp · ${nx.hp} HP · ${nx.slots} slots${locked?' · needs research':''}`,()=>queueWall(dir));b.dataset.wallbuild=dir;b.disabled=locked||!canPay(nx.cost)||S.over;box.appendChild(b);}
   if(w.lvl&&w.hp<wallMax(w.lvl)-0.01){const on=!!(S.repair&&S.repair[dir]);
     const rb=btn(on?`${EM.wall} Repairing first`:`${EM.wall} Repair first`,on?`builders are on it ahead of the queue · ${Math.ceil(w.hp)}/${wallMax(w.lvl)} HP · click to stop`:`${Math.ceil(w.hp)}/${wallMax(w.lvl)} HP · put this wall ahead of everything in the build queue`,
       ()=>{S.repair=S.repair||{};S.repair[dir]=!on;if(!on)log(`Builders will repair the ${DIRS[dir].toLowerCase()} wall before anything else.`,'d');sfx('click');save();render();},'sm'+(on?' sel':''));
@@ -2162,7 +2212,7 @@ function wallCard(dir,focus){
   if(w.lvl){const r=el('div','row');const gq=queueItem('gate',dir),tq=queueItem('bastion',dir);
     if(!S.gates[dir]){const b=btn(`${EM.gate} Gate`,gq?`${fl(gq.bp)}/${gq.need} bp`:`${costStr(GATE.cost)} · ${GATE.bp} bp · scouts leave at full speed`,()=>queueExtra('gate',dir),'sm');b.disabled=!!gq||!canPay(GATE.cost)||S.over;r.appendChild(b);}
     {const lv=bastionLvl(dir);const nx=BASTION[lv];
-      if(nx){const lk=nx.req&&!hasR(nx.req);const b=btn(`${EM.tower} ${lv?'Upgrade bastion':'Bastion'}`,tq?`${fl(tq.bp)}/${tq.need} bp`:lk?`research ${RESEARCH.find(r=>r.id===nx.req).name} first`:`${nx.name} · ${costStr(nx.cost)} · ${nx.bp} bp · ${nx.desc}`,()=>queueExtra('bastion',dir),'sm');b.disabled=lk||!!tq||!canPay(nx.cost)||S.over;r.appendChild(b);}}
+      if(nx){const lk=nx.req&&!hasR(nx.req);const b=btn(`${EM.tower} ${lv?'Upgrade bastion':'Bastion'}`,tq?`${fl(tq.bp)}/${tq.need} bp`:lk?`research ${RESEARCH.find(r=>r.id===nx.req).name} first`:`${nx.name} · ${costStr(nx.cost)} · ${nx.bp} bp · ${nx.desc}`,()=>queueExtra('bastion',dir),'sm');b.dataset.bastion=dir;b.disabled=lk||!!tq||!canPay(nx.cost)||S.over;r.appendChild(b);}}
     if(r.children.length)box.appendChild(r);}
   if(front){const g=guardsOf(dir);const n=wallSlots(dir);const cold=g.filter(c=>coldFactor(c)<1).length;
     box.appendChild(el('small','',`${EM.guard} ${g.reduce((s,c)=>s+cpower(c),0)} power on this wall${cold?` <span class="cold">❄${cold} cold</span>`:''}. Click a slot to post or move an animal, or drag animals on the map.`));
@@ -2185,7 +2235,7 @@ function renderDrawer(){
     queueList(body);
     body.appendChild(el('h4','','BLUEPRINTS'));
     body.appendChild(el('div','muted',buildSel==='road'?`Roads: drag across the map to plan a strip, ${EM.scrap}1 a step; builders pave it in order, like anything else. Drag starting on paving to take it up again. Roads can run under buildings you place later.`:buildSel?`Click an empty tile to place a ${BUILD[buildSel].name.toLowerCase()}.`:'Pick one, then click an empty tile inside the walls. Click a built building to upgrade it. Walls, gates, and towers: click a wall.'));
-    const row=el('div','row');Object.entries(BUILD).forEach(([id,b])=>{const have=anyOf(id);if(b.single&&have)return;if(b.req&&S.day<b.req)return;if(b.tech&&!hasR(b.tech))return;const e=btn(`${icon(id)} ${b.name}`,`${costStr(b.lv[0].cost)} · ${b.lv[0].bp} bp`,()=>{buildSel=buildSel===id?null:id;sel=null;render();},buildSel===id?'sel':'');e.disabled=S.over||!canPay(b.lv[0].cost);e.title=b.desc;row.appendChild(e);});
+    const row=el('div','row');Object.entries(BUILD).forEach(([id,b])=>{const have=anyOf(id);if(b.single&&have)return;if(b.req&&S.day<b.req)return;if(b.tech&&!hasR(b.tech))return;const e=btn(`${icon(id)} ${b.name}`,`${costStr(b.lv[0].cost)} · ${b.lv[0].bp} bp`,()=>{buildSel=buildSel===id?null:id;sel=null;render();},buildSel===id?'sel':'');e.disabled=S.over||!canPay(b.lv[0].cost);e.title=b.desc;e.dataset.build=id;row.appendChild(e);});
     {const e=btn(`${bicon('road_1')} Road`,`${EM.scrap}${ROAD_COST} + ${ROAD_BP} bp a step · drag on the map to plan it, builders pave it · drag from paving to remove`,()=>{buildSel=buildSel==='road'?null:'road';sel=null;render();},buildSel==='road'?'sel':'');e.title='A paved strip between and past buildings. People and patrol animals walk half again as fast on it, and they prefer it when they plan a route: run one from the gate to the middle of camp and scouts come home quicker.';row.appendChild(e);}body.appendChild(row);
     body.appendChild(el('h4','','CLEAR FOREST'));const cl=el('div','row');
     Object.keys(DIRS).forEach(dir=>{if(S.open.includes(dir))return;const q=queueItem('clear',dir);
@@ -2212,7 +2262,7 @@ function renderDrawer(){
         it.appendChild(el('div','n',`<b>${a.name||SPECIES[a.sp].name} + ${b.name||SPECIES[b.sp].name}</b><small>${aico(sp,18)} ${SPECIES[sp].name} egg ${isBreeding()?`in ${Math.max(1,layEvery()-(n.p||0))} night${layEvery()-(n.p||0)===1?'':'s'}`:`in spring (no eggs in ${season().n.toLowerCase()})`}${penRoomForEgg()>0?'':' · <span class="bad">pen full: waiting for room</span>'}</small><div class="bar2"><i style="width:${Math.min(100,Math.round((n.p||0)/layEvery()*100))}%"></i></div>`));
         it.appendChild(btn('✕','split them up',()=>splitNest(n),'sm'));body.appendChild(it);});
       if(nests().length<nestCap()){const pairs=[];const pn=S.creatures.filter(c=>c.post==='pen'&&!inNest(c.id));pn.forEach((a,i)=>pn.slice(i+1).forEach(b=>{if(canPair(a,b))pairs.push([a,b]);}));
-        if(pairs.length){body.appendChild(el('div','',`<b>Free nest.</b> Pair up:`));const r=el('div','row');pairs.forEach(([a,b])=>{const sp=SPECIES[a.sp].tier<=SPECIES[b.sp].tier?a.sp:b.sp;r.appendChild(btn(`${aico(a.sp,20)}${aico(b.sp,20)} ${a.name||SPECIES[a.sp].name} + ${b.name||SPECIES[b.sp].name}`,`${SPECIES[sp].name} eggs`,()=>pairUp(a.id,b.id),'sm'));});body.appendChild(r);}
+        if(pairs.length){body.appendChild(el('div','',`<b>Free nest.</b> Pair up:`));const r=el('div','row');r.dataset.nest='1';pairs.forEach(([a,b])=>{const sp=SPECIES[a.sp].tier<=SPECIES[b.sp].tier?a.sp:b.sp;r.appendChild(btn(`${aico(a.sp,20)}${aico(b.sp,20)} ${a.name||SPECIES[a.sp].name} + ${b.name||SPECIES[b.sp].name}`,`${SPECIES[sp].name} eggs`,()=>pairUp(a.id,b.id),'sm'));});body.appendChild(r);}
         else{const lines={};S.creatures.forEach(c=>{(lines[SPECIES[c.sp].group]=lines[SPECIES[c.sp].group]||[]).push(c);});const could=Object.entries(lines).filter(([g,l])=>l.length>=2&&l.some(c=>c.post!=='pen'));
           body.appendChild(el('div','muted',`<b>Free nest</b>, but no two animals of one line are resting in the pen.${could.length?` ${could.map(([g,l])=>`${g} line: ${l.map(c=>(c.name||SPECIES[c.sp].name)+' ('+(c.post==='pen'?'pen':c.post==='patrol'?'patrol':DIRS[c.front].toLowerCase()+' wall')+')').join(', ')}`).join('; ')} — send two of them to the pen.`:' Only one of each line? Ask the scouts to find an egg (click the hatchery).'}`));}}
       body.appendChild(btn(ico('animals',1)+' All animals','',()=>openTab('animals'),'sm'));}
@@ -2253,7 +2303,7 @@ function renderDrawer(){
     const onDropTo=(job)=>e=>{e.preventDefault();const dd=e.dataTransfer.getData('text/plain');if(dd.startsWith('p:'))setJob(Number(dd.slice(2)),job);};
     body.ondragover=e=>{const r=body.getBoundingClientRect();const y=e.clientY;if(y<r.top+70)body.scrollTop-=14;else if(y>r.bottom-70)body.scrollTop+=14;};
     Object.entries(JOBS).forEach(([id,j])=>{const n=inJob(id).length,cap=jobCap(id);
-      const box=el('div','job col'+(tabArg===id?' focus':''));box.ondragover=e=>{e.preventDefault();box.classList.add('over');};box.ondragleave=()=>box.classList.remove('over');box.ondrop=e=>{box.classList.remove('over');onDropTo(id)(e);};
+      const box=el('div','job col'+(tabArg===id?' focus':''));box.dataset.job=id;box.ondragover=e=>{e.preventDefault();box.classList.add('over');};box.ondragleave=()=>box.classList.remove('over');box.ondrop=e=>{box.classList.remove('over');onDropTo(id)(e);};
       box.onclick=e=>{if(pickChip&&!e.target.closest('.pchip')){const pid=pickChip;pickChip=null;setJob(pid,id);}};
       box.appendChild(el('div','t',`<b>${ico(id)} ${j.name} <span class="muted">${ico(j.stat,1)}</span></b><span class="${cap===0?'bad':''}">${n}${j.unlimited?'':'/'+cap}</span>`));
       const r=el('div','row');inJob(id).forEach(p=>{const c=el('span','pchip'+(pickChip===p.id?' sel':''),`${icon(`person_${p.wounded?'wounded':id}_${p.skin||0}`,p.look)}${p.name}${p.wounded?' '+ico('ss_bandage_roll',1):''}`);c.draggable=true;c.title=`${p.skill} · strength ${p.st.str}, speed ${p.st.spd}, intelligence ${p.st.int}`;const ed=el('span','ed','✎');ed.title='Rename';ed.onclick=e=>{e.stopPropagation();showRename('person',p.id);};c.appendChild(ed);
@@ -2276,7 +2326,7 @@ function renderDrawer(){
     const goTile=type=>{const t=builtOf(type)[0];if(!t)return;sel=K(t.x,t.y);openTab('tile');render();};
     // the buttons that move one animal: each wall front, the patrol, the pen; greyed with the reason when full
     const moveRow=c=>{const r=el('div','row');
-      if(isSky(c)){const here=c.post==='sky';const b=btn(`${ico('ab_fly',1)} Sky`,here?'in the air: meets the herd beyond the walls':'flies out to meet the herd in sorties; only bats can reach it',()=>postCreature(c.id,'sky'),'sm'+(here?' sel':''));b.disabled=here;r.appendChild(b);}
+      if(isSky(c)){const here=c.post==='sky';const b=btn(`${ico('ab_fly',1)} Sky`,here?'in the air: meets the herd beyond the walls':'flies out to meet the herd in sorties; only bats can reach it',()=>postCreature(c.id,'sky'),'sm'+(here?' sel':''));b.disabled=here;b.dataset.post='sky';r.appendChild(b);}
       if(!isSky(c))fr.forEach(f=>{const here=c.post==='guard'&&c.front===f;const full=guardsOf(f).length>=wallSlots(f);const b=btn(`${ico('wall',1)} ${DIRS[f]} wall`,here?'posted here':full?`full ${guardsOf(f).length}/${wallSlots(f)}`:`${guardsOf(f).length}/${wallSlots(f)} · bites over the wall`,()=>postCreature(c.id,f),'sm'+(here?' sel':''));b.disabled=here||full;r.appendChild(b);});
       if(!isSky(c)){const here=c.post==='patrol';const full=patrols().length>=patrolCap();const b=btn(`${ico('spd',1)} Patrol`,here?'on patrol':full?`full ${patrols().length}/${patrolCap()}`:`${patrols().length}/${patrolCap()} · catches what gets inside`,()=>postCreature(c.id,'patrol'),'sm'+(here?' sel':''));b.disabled=here||full;r.appendChild(b);}
       {const here=c.post==='pen';const full=penFull();const b=btn(`${ico('pen',1)} Pen`,here?'resting here':full?`full ${penned()}/${penCap()}`:`${penned()}/${penCap()} · heals, and breeds from a nest`,()=>postCreature(c.id,'pen'),'sm'+(here?' sel':''));b.disabled=here||full;r.appendChild(b);}
@@ -2327,7 +2377,7 @@ function renderDrawer(){
     // the roster: every animal, grouped by where it stands
     const groups=[].concat(fr.map(f=>[`${EM[f]} ${DIRS[f]} wall ${guardsOf(f).length}/${wallSlots(f)}`,guardsOf(f)]),[[`${ico('spd',1)} Patrol ${patrols().length}/${patrolCap()}`,patrols()],[`${ico('pen',1)} Pen ${penned()}/${penCap()}`,S.creatures.filter(c=>c.post==='pen')]]);
     groups.forEach(([label,list])=>{const box=el('div','job');box.appendChild(el('div','t',`<b>${label}</b><span class="muted">${list.length?'':'nobody'}</span>`));
-      list.forEach(c=>{const s=SPECIES[c.sp];const it=el('div','item');it.style.cursor='pointer';it.appendChild(el('div','em',aico(c.sp,36)));
+      list.forEach(c=>{const s=SPECIES[c.sp];const it=el('div','item');it.style.cursor='pointer';if(isSky(c)&&c.post!=='sky')it.dataset.skyrow='1';it.appendChild(el('div','em',aico(c.sp,36)));
         const n=inNest(c.id);const flags=[c.hunger>0?`<span class="bad">hungry · needs ${foodIco(s.food)}</span>`:'',c.post==='guard'&&coldFactor(c)<1?'<span class="warn">❄ cold</span>':'',c.gear&&(c.gear.armor||c.gear.weapon)?ico('armor',1):'',n?`<span class="good">nesting</span>`:'',growTo(c.sp)&&hasR(SPR[growTo(c.sp)])?'<span class="good">▲ can grow</span>':''].filter(Boolean).join(' · ');
         it.appendChild(el('div','n',`<b>${c.name||s.name}</b> <small class="muted">${s.name} · ${ico('str',1)}${cpower(c)} · ${Math.ceil(c.hp)}/${c.maxhp} HP</small>${flags?`<br><small>${flags}</small>`:''}<div class="bar2"><i style="width:${Math.round(c.hp/c.maxhp*100)}%"></i></div>`));
         it.appendChild(el('button','chip2','›'));it.onclick=()=>openTab('animal',c.id);box.appendChild(it);});
@@ -2607,9 +2657,9 @@ function renderModal(){
   if(a.tip)r.appendChild(btn('Stop these tips','settings has the switch',()=>{ac();CFG.tips=false;S.alerts=S.alerts.filter(x=>!x.tip);if(!S.alerts.length&&!S.over)setSpeed(1);save();render();},'sm'));
   box.appendChild(r);m.appendChild(box);
 }
-function render(){document.body.classList.toggle('ontitle',uiModal==='title'||uiModal==='start');if(S&&S.tut)renderTut();
+function render(){document.body.classList.toggle('ontitle',uiModal==='title'||uiModal==='start');
   updateMusic();renderHud();if(S){const [tag,msg]=advice();const ad=$('advisor');ad.hidden=false;ad.innerHTML=`<b>${tag}</b><span>${msg}</span>`;ad.classList.toggle('fight',!!S.battle);}
-  renderModal();renderDrawer();renderBar();updateTip();
+  renderModal();renderDrawer();renderBar();updateTip();if(S&&S.tut)renderTut();   // last: its marks go on the drawer and bar just built
 }
 function updateTip(){
   const tp=$('tip');if(!S)return;if(drag&&drag.moved&&drag.creature){tp.hidden=false;tp.textContent=`Drop ${SPECIES[drag.creature.sp].name} on a wall to post it, or on the pen to rest it`;return;}
@@ -2663,6 +2713,6 @@ if(savedGame){S=migrate(savedGame);render();boot();}
 else{boot();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
-window.__AG={get S(){return S},TUTORIAL,showTitle,HORDE_RAMP,hatcheryPos,resCap,upkeep,UPKEEP,unkept,CAPPED,consumption,production,enforceCaps,BASE_CAP,repairCostPerHp,repairAffordable,BLD,get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,bastionCrew,bastionLvl,bastionSlots,BASTION,queueExtra,coldFactor,wallMax,patrolCap,isSky,skies,roostPos,earlyEyes,guardsOf,SPECIES,addCreature,rollHorde,hordeStrength,wallSlots,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
+window.__AG={get S(){return S},TUTORIAL,showTitle,closeDrawer,HORDE_RAMP,hatcheryPos,resCap,upkeep,UPKEEP,unkept,CAPPED,consumption,production,enforceCaps,BASE_CAP,repairCostPerHp,repairAffordable,BLD,get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,bastionCrew,bastionLvl,bastionSlots,BASTION,queueExtra,coldFactor,wallMax,patrolCap,isSky,skies,roostPos,earlyEyes,guardsOf,SPECIES,addCreature,rollHorde,hordeStrength,wallSlots,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
 })();
 </script>
