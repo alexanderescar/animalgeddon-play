@@ -283,6 +283,7 @@ function aspr(name,row,frame,x,y,flip=false,scale=1.5,alpha=1,wide=1){const s=AN
   ctx.save();ctx.globalAlpha=alpha;ctx.translate(Math.round(x),Math.round(y));if(flip)ctx.scale(-1,1);ctx.drawImage(asheet,s.x+f*F,sy+r*F,F,F,-F*scale*wide/2,-G*scale,F*scale*wide,F*scale);ctx.restore();return true;}
 const corpses=[];
 function corpse(name,x,y,face){corpses.push({name,x,y,face,t:0});}
+const relics_=[];   // bones left where the infected fell
 const bicon=name=>{const a=BLD[name];const s=Math.min(44/a.h,52/a.w,1.5);return `<span class="bsp" style="background-position:-${a.x*s}px -${a.y*s}px;background-size:${(bldImg.naturalWidth||512)*s}px auto;width:${a.w*s}px;height:${a.h*s}px"></span>`;};
 const icon=(name,look)=>name.startsWith('person_')&&PJOB[name.split('_')[1]]!=null?picon(name.split('_')[1],look||{}):(typeof ENEMIES!=='undefined'&&ENEMIES.sets[name])?eicon(name):name==='garden'?bicon('garden_icon'):(BLD[name]||BLD[name+'_1'])?bicon(BLD[name]?name:name+'_1'):ANIM.sprites[name]?aico(name,40):`<span class="sp" style="${spCss(name)}"></span>`;
 const bsprite=(type,lvl)=>lvl>1&&ATLAS[`${type}_${lvl}`]?`${type}_${lvl}`:(ATLAS[type]?type:'tower');
@@ -787,6 +788,7 @@ const SFX={
   slam:()=>{beep(62,0.32,'sine',0.26,-30);noise(0.16,0.2);beep(95,0.2,'sawtooth',0.12,-50,0.02);},
   wallbreak:()=>{noise(0.3,0.24);beep(70,0.4,'sawtooth',0.2,-40);beep(50,0.5,'sine',0.22,-20,0.08);beep(900,0.05,'square',0.06,-600,0.05);},
   die:()=>{const v=0.92+Math.random()*0.16;beep(420*v,0.22,'square',0.11,-360);noise(0.08,0.06,0.04);},
+  rumble:()=>{beep(44,0.9,'sine',0.14,-8);beep(58,0.7,'triangle',0.05,-10,0.1);noise(0.5,0.025,0.05);},
   horn:()=>{beep(110,0.5,'sawtooth',0.1);beep(147,0.6,'sawtooth',0.1,0,0.25);beep(110,0.8,'sawtooth',0.1,0,0.6);},
   done:()=>{beep(523,0.08,'square',0.05);beep(784,0.14,'square',0.05,0,0.09);}, alert:()=>{beep(660,0.07,'square',0.05);beep(660,0.07,'square',0.05,0,0.12);},
   scarce:()=>{beep(180,0.25,'triangle',0.07,-60);beep(140,0.35,'triangle',0.07,-40,0.25);},
@@ -1312,11 +1314,11 @@ function mkEnemy(t,dir,i,press){const e=ENEMY[t];if(S.stats.met&&!S.stats.met.in
 function spawnWave(){const B=S.battle;const list=B.waves[B.wave];
   // where this wave leans on each front: anywhere from a sixth of the way along to five sixths
   const press={};B.dirs.forEach(d=>{press[d]=0.17+Math.random()*0.66;});
-  const fresh=list.map((t,i)=>mkEnemy(t,B.dirs[i%B.dirs.length],i,press[B.dirs[i%B.dirs.length]]));B.enemies.push(...fresh);B.wave++;B.lull=0;B.waveT=0;
+  const fresh=list.map((t,i)=>mkEnemy(t,B.dirs[i%B.dirs.length],i,press[B.dirs[i%B.dirs.length]]));B.enemies.push(...fresh);B.wave++;B.lull=0;B.waveT=0;B.stragT=0;B.waveSize=fresh.length;
   if(B.wave>1){sfx('horn');shake=6;ticker(`Wave ${B.wave}: ${summarize(fresh)} out of the trees`);}}
 // Weight: 0 routine, 1 notable (first blood, something big goes down), 2 the ones that decide a
 // night (a veteran coming of age, the wall going). Everything used to read in the same flat voice.
-let bannerT=0;
+let bannerT=0,lastRumble=-9999;
 function banner(title,sub,secs){const b=$('banner');b.innerHTML=`${title}${sub?`<small>${sub}</small>`:''}`;b.classList.add('on');clearTimeout(bannerT);bannerT=setTimeout(()=>b.classList.remove('on'),(secs||4)*1000);}
 function ticker(msg,w){const B=S.battle;if(!B)return;B.ticker.unshift({msg,t:0,w:w||0});if(B.ticker.length>5)B.ticker.length=5;}
 function gapPoint(dir){const [x,y,w,h]=wallRect(dir);if(dir==='E')return {x:x-16,y:y+h/2};if(dir==='W')return {x:x+w+16,y:y+h/2};if(dir==='N')return {x:x+w/2,y:y+h+16};return {x:x+w/2,y:y-16};}
@@ -1379,6 +1381,7 @@ function kill(e,by){if(e.dead||e.dying>0)return;
   // The loot, the count and the feed line all fire on the KILLING BLOW, not when the body lands,
   // or the ticker reads a beat late. Only the corpse waits for the fall (see the dying tick).
   e.dying=DEATH_TIME;e.hp=0;const B=S.battle;B.killed++;S.stats.kills++;puff(e.x,e.y,'#ff3b3b',9,70);puff(e.x,e.y-4,'#ffd479',4,50);sfx('die');sceneFreeze=Math.max(sceneFreeze,0.07);e.flash=0.12;
+  {const left=B.enemies.filter(x=>x!==e&&!x.dead&&!x.dying).length+B.waves.slice(B.wave).reduce((n,w)=>n+w.length,0);floater(e.x,e.y-30,`${ENEMY[e.type].name.toUpperCase()} DOWN${left?' · '+left+' LEFT':' · LAST ONE'}`,left?'#ffd479':'#8fd45c');}
   const big=ENEMY[e.type].cost>=4;if(Math.random()<(big?0.9:0.45)){B.loot.hide++;}if(Math.random()<(big?0.7:0.35)){B.loot.bone++;}
   if(by){const first=B.killed===1;const heavy=ENEMY[e.type].cost>=7;
     ticker(`${by} killed a ${ENEMY[e.type].name.toLowerCase()}${first?' \u2014 first blood':''}`,heavy?2:first?1:0);}}
@@ -1386,7 +1389,16 @@ const cname=c=>c.name?`${c.name} the ${SPECIES[c.sp].name.toLowerCase()}`:SPECIE
 function updateBattle(dt){
   const B=S.battle;if(!B)return;
   B.waveT+=dt;B.ticker.forEach(t=>t.t+=dt);
-  if(B.wave<B.waves.length){if(!B.enemies.length){B.lull+=dt;if(B.lull>7)spawnWave();}else if(B.waveT>70)spawnWave();}
+  // Pacing. A wave used to come only when the last one was dead (after a 7 s lull) or at 70 s,
+  // so half of every horde was defenders standing at an empty wall. Now the next wave steps out
+  // when the one before is down to its last two fifths (never sooner than 10 s after it arrived),
+  // and between waves a straggler from the wave to come wanders in alone every so often. Total
+  // numbers are unchanged; only the spacing is.
+  if(B.wave<B.waves.length){const alive=B.enemies.filter(e=>!e.dead&&!e.dying).length;const size=B.waveSize||Math.max(1,B.enemies.length);
+    if(!alive){B.lull+=dt;if(B.lull>3)spawnWave();}
+    else if(B.waveT>10&&alive<=Math.max(1,Math.ceil(size*0.4)))spawnWave();
+    else if(B.waveT>45)spawnWave();
+    else{B.stragT=(B.stragT||0)+dt;if(B.stragT>9&&B.waves[B.wave].length>1){B.stragT=0;const t=B.waves[B.wave].pop();const d=B.dirs[Math.floor(Math.random()*B.dirs.length)];B.enemies.push(mkEnemy(t,d,0,0.17+Math.random()*0.66));ticker(`A ${ENEMY[t].name.toLowerCase()} comes out of the trees alone`);}}}
   const guardsP=inJob('guard').filter(p=>!p.wounded);const hp0=hatcheryPos();const gpEff=jobEff('guard');
   const guardAnimals=S.creatures.filter(c=>c.post==='guard');const patrolAnimals=patrols();
   B.enemies.forEach((e,idx)=>{if(!S.battle)return;   // a breach can end the game mid-loop (S.battle goes null); the rest of the herd has nothing left to do
@@ -1792,7 +1804,12 @@ function creatureTarget(c){
     if(B&&S.walls[c.front].broken){const g=gapPoint(c.front);const o=slotOffset(i);return {x:g.x+o[0]*1.2,y:g.y+o[1]*1.2};}
     if(B){const a=anim[c.id];const live=B.enemies.filter(e=>e.inside&&!e.playing&&!e.dying&&!ENEMY[e.type].sneak);if(live.length&&a&&(!S.walls[c.front].lvl||live.some(e=>ENEMY[e.type].fly))){const t=live.sort((u,v)=>Math.hypot(u.x-a.x,u.y-a.y)-Math.hypot(v.x-a.x,v.y-a.y))[0];return {x:t.x-(t.x>a.x?18:-18),y:t.y};}
       const eng=wallEngage(c,list,i);if(eng)return eng;}
-    return wallSpot(c.front,i,list.length);}
+    // nothing in reach: a living line, not statues. Every few seconds each animal picks a new
+    // spot a few pixels along the wall and a way to face, and ambles there.
+    const spot=wallSpot(c.front,i,list.length);const a=anim[c.id];
+    if(a){if(a.idleTick!==tickA){a.idleTick=tickA;a.idleT=(a.idleT||0)-dtReal;}if(a.idleT<=0){a.idleT=2.5+Math.random()*3.5;const horiz=c.front==='N'||c.front==='S';const d=(Math.random()-0.5)*18;a.idleDx=horiz?d:0;a.idleDy=horiz?0:d;a.idleFace=Math.random()<0.65?-(a.idleFace||a.face||1):(a.idleFace||a.face||1);}   // usually turns the head
+      if(a.idleDx||a.idleDy){spot.x+=a.idleDx||0;spot.y+=a.idleDy||0;}if(!a.moving&&a.idleFace&&!B)a.face=a.idleFace;}
+    return spot;}
   if(c.post==='patrol'){const a=anim[c.id];const B=S.battle;
     if(B&&a){const live=B.enemies.filter(e=>e.inside&&!e.dead&&!e.playing&&!e.dying);if(live.length){const t=live.sort((u,v)=>Math.hypot(u.x-a.x,u.y-a.y)-Math.hypot(v.x-a.x,v.y-a.y))[0];const dd=Math.max(1,Math.hypot(a.x-t.x,a.y-t.y));if(dd<18)return {x:a.x,y:a.y};return {x:t.x+(a.x-t.x)/dd*14,y:t.y+(a.y-t.y)/dd*14};}}
     // a slow loop just inside the walls, each patroller spaced along it. The animal keeps its own
@@ -2039,9 +2056,17 @@ function draw(ts){
       ctx.globalAlpha=(0.5+0.15*Math.sin(ph*1.3))*fogged;
       ctx.fillStyle='#0d0b09';ctx.beginPath();ctx.ellipse(mx,my,9,6,0,0,Math.PI*2);ctx.fill();
       ctx.fillRect(mx-7,my-8,5,5);
-      if(dk>0.2){ctx.globalAlpha=Math.min(1,dk*1.8)*fogged;ctx.fillStyle='#ffb13b';
+      // eyes: red, and they blink (each pair on its own clock); brighter as the light goes
+      const blink=((tickA/40+i*2.3)%7)<0.25;if(!blink){ctx.globalAlpha=Math.min(1,0.45+dk*1.3)*fogged;ctx.fillStyle=dk>0.2?'#ff3b3b':'#c8302a';
         ctx.fillRect(mx-6,my-7,1.5,1.5);ctx.fillRect(mx-3.5,my-7,1.5,1.5);}
-    }});ctx.globalAlpha=1;}
+    }});ctx.globalAlpha=1;
+    // a chevron at the edge of the view on that side, pulsing, with the front's name
+    MS.dirs.forEach(dir=>{const [x,y,w,hh]=wallRect(dir);const k=(Math.sin(tickA/9)+1)/2;ctx.save();ctx.globalAlpha=0.55+0.45*k;ctx.fillStyle='#ff6b5c';ctx.strokeStyle='#1a0d05';ctx.lineWidth=3;
+      const cx=dir==='E'?x+w+58+k*6:dir==='W'?x-58-k*6:x+w/2,cy=dir==='S'?y+hh+52+k*6:dir==='N'?y-52-k*6:y+hh/2;const ang=dir==='E'?0:dir==='W'?Math.PI:dir==='S'?Math.PI/2:-Math.PI/2;
+      ctx.translate(cx,cy);ctx.rotate(ang);ctx.beginPath();ctx.moveTo(-10,-12);ctx.lineTo(4,0);ctx.lineTo(-10,12);ctx.lineTo(-4,0);ctx.closePath();ctx.stroke();ctx.fill();ctx.rotate(-ang);
+      ctx.font='10px "Press Start 2P", monospace';ctx.textAlign='center';ctx.lineWidth=3;ctx.strokeText(DIRS[dir].toUpperCase(),0,dir==='N'?-18:30);ctx.fillText(DIRS[dir].toUpperCase(),0,dir==='N'?-18:30);ctx.restore();});
+    // the low sound of a lot of hooves, now and then
+    if(running&&tickA-lastRumble>420+Math.random()*120){lastRumble=tickA;sfx('rumble');}}
   if(drag&&drag.moved&&drag.creature){builtOf('pen').forEach(t=>{ctx.fillStyle=`rgba(240,182,74,${.1+pulse*.1})`;ctx.fillRect(t.x*T,t.y*T,T,T);});}
   S.creatures.forEach(c=>{const tg=creatureTarget(c);const a=ensureAnim(c.id,tg.x,tg.y);const dragging=drag&&drag.moved&&drag.creature===c;
     // a patroller on its loop walks at exactly the loop's pace, so it neither overtakes its lead point nor falls behind it
@@ -2090,7 +2115,9 @@ function draw(ts){
     if(e.dotT>0){ctx.fillStyle=e.dot>=1?'#ff3b3b':'#8fd45c';ctx.fillRect(Math.round(e.x)+10,Math.round(e.y)-32,3,3);}
     ctx.fillStyle='#ff3b3b';ctx.globalAlpha=.5+pulse*.5;ctx.fillRect(Math.round(e.x)-1,Math.round(e.y)-32-(E.fly?12:0),3,3);ctx.globalAlpha=1;
     if(!e.dying)hpBar(Math.round(e.x),Math.round(e.y)-28-(E.fly?12:0),e.hp,e.maxhp,20);}});});   // no empty bar over a body
-  for(let i=corpses.length-1;i>=0;i--){const q=corpses[i];if(running)q.t+=dtReal;if(q.t>1.9){corpses.splice(i,1);continue;}const f=Math.min(5,Math.floor(q.t/0.3));DQ.push({y:q.y+7,fn:()=>{if(ENEMIES.sets[q.name]){const E=ENEMY[q.name];const fr=ENEMIES.sets[q.name].anims.death.side;espr(q.name,'death','side',Math.min(fr.length-1,Math.floor(q.t/0.22)),q.x,q.y+8,q.face<0,E&&E.fly?0.8:1.15,q.t>1.5?1-(q.t-1.5)/0.4:1);}else aspr(q.name,'death',f,q.x,q.y+8,q.face>0,1.5*((ENEMY[q.name]||ENEMY[q.name.split('_')[0]]||{}).scale||1),q.t>1.5?1-(q.t-1.5)/0.4:1);}});}
+  // a body lies for three seconds and fades over the last; a bone stays where it fell for a while after
+  for(let i=corpses.length-1;i>=0;i--){const q=corpses[i];if(running)q.t+=dtReal;if(q.t>3.2){corpses.splice(i,1);relics_.push({x:q.x,y:q.y+6,t:0});continue;}const f=Math.min(5,Math.floor(q.t/0.3));DQ.push({y:q.y+7,fn:()=>{if(ENEMIES.sets[q.name]){const E=ENEMY[q.name];const fr=ENEMIES.sets[q.name].anims.death.side;espr(q.name,'death','side',Math.min(fr.length-1,Math.floor(q.t/0.22)),q.x,q.y+8,q.face<0,E&&E.fly?0.8:1.15,q.t>2.6?1-(q.t-2.6)/0.6:1);}else aspr(q.name,'death',f,q.x,q.y+8,q.face>0,1.5*((ENEMY[q.name]||ENEMY[q.name.split('_')[0]]||{}).scale||1),q.t>2.6?1-(q.t-2.6)/0.6:1);}});}
+  for(let i=relics_.length-1;i>=0;i--){const r=relics_[i];if(running)r.t+=dtReal;if(r.t>12){relics_.splice(i,1);continue;}const al=r.t>9?1-(r.t-9)/3:1;ctx.globalAlpha=al;ctx.fillStyle='#e9dcc0';ctx.fillRect(Math.round(r.x)-4,Math.round(r.y),8,2);ctx.fillRect(Math.round(r.x)-5,Math.round(r.y)-1,2,4);ctx.fillRect(Math.round(r.x)+3,Math.round(r.y)-1,2,4);ctx.globalAlpha=1;}
   for(const k in WORKED)delete WORKED[k];const inside={};
   S.people.forEach(p=>{const start=tileCenter(K(6,5));const a=ensureAnim(p.id,start.x,start.y);const tg=targetFor(p);
     if(running||!a.init){moveTo(a,tg,(tg&&tg.work==='hide'?2.6:1.6)+(p.st?p.st.spd*0.15:0),p.job==='scout');a.init=true;}
@@ -2770,6 +2797,6 @@ if(savedGame){S=migrate(savedGame);render();boot();}
 else{boot();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
-window.__AG={get S(){return S},TUTORIAL,showTitle,closeDrawer,camTarget,SFX,DUCK,musicDuck:()=>S&&S.battle&&S.battle.kind!=='prowl'?DUCK:1,drawWallDamage,tip,checkMilestones,hitEnemy,banner,sceneFreeze:()=>sceneFreeze,HORDE_RAMP,hatcheryPos,resCap,upkeep,UPKEEP,unkept,CAPPED,consumption,production,enforceCaps,BASE_CAP,repairCostPerHp,repairAffordable,BLD,get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,bastionCrew,bastionLvl,bastionSlots,BASTION,queueExtra,coldFactor,wallMax,patrolCap,isSky,skies,roostPos,earlyEyes,guardsOf,SPECIES,addCreature,rollHorde,hordeStrength,wallSlots,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
+window.__AG={get S(){return S},TUTORIAL,showTitle,closeDrawer,camTarget,spawnWave,corpses:()=>corpses,bones:()=>relics_,floaters:()=>floaters,wallSpot,SFX,DUCK,musicDuck:()=>S&&S.battle&&S.battle.kind!=='prowl'?DUCK:1,drawWallDamage,tip,checkMilestones,hitEnemy,banner,sceneFreeze:()=>sceneFreeze,HORDE_RAMP,hatcheryPos,resCap,upkeep,UPKEEP,unkept,CAPPED,consumption,production,enforceCaps,BASE_CAP,repairCostPerHp,repairAffordable,BLD,get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,bastionCrew,bastionLvl,bastionSlots,BASTION,queueExtra,coldFactor,wallMax,patrolCap,isSky,skies,roostPos,earlyEyes,guardsOf,SPECIES,addCreature,rollHorde,hordeStrength,wallSlots,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
 })();
 </script>
