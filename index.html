@@ -407,6 +407,25 @@ function drawWallRun(dir,lvl,x,y,ww,hh,gap){const h=BLD['wallh_'+lvl],v=BLD['wal
   else{const cap=BLD['wallcap_'+lvl];const ox=x-Math.round((v.w-ww)/2);for(let i=0;i<hh;i+=v.h){if(inGap(x,y+i))continue;const hgt=Math.min(v.h,hh-i);ctx.drawImage(bldImg,v.x,v.y,v.w,hgt,ox,y+i,v.w,hgt);}
     if(cap)ctx.drawImage(bldImg,cap.x,cap.y,cap.w,cap.h,x-Math.round((cap.w-ww)/2),y-cap.h+4,cap.w,cap.h);}
   return true;}
+// Damage states: a wall under 2/3 shows cracks, under 1/3 it is splintered, with planks knocked out
+// and chips lying at the foot. Drawn over the sprite from a fixed seed per wall, so the cracks stay
+// where they are between frames and grow as the HP drops. A bite also jolts the whole run by a
+// pixel for a few frames (w.jolt), so the wall reads as something being hit, not a colour.
+function drawWallDamage(dir,lvl,x,y,ww,hh,frac,gap){if(frac>=0.66)return;const h=BLD['wallh_'+lvl],v=BLD['wallv_'+lvl];if(!h||!v)return;const horiz=ww>hh;const seed=dir.charCodeAt(0);
+  const inGap=(px,py)=>gap&&px>gap[0]&&px<gap[0]+gap[2]&&py>gap[1]&&py<gap[1]+gap[3];
+  const n=frac<0.33?12:frac<0.5?7:4;const splinter=frac<0.33;
+  ctx.lineWidth=1;
+  for(let i=0;i<n;i++){const u=hash2(i*3+1,seed);const len=horiz?ww:hh;const along=12+u*(len-24);
+    const px=horiz?x+along:x-Math.round((v.w-ww)/2)+3+hash2(i,seed+9)*(v.w-6),py=horiz?y+hh-h.h+3+hash2(i,seed+9)*(h.h-6):y+along;
+    if(inGap(px,py))continue;
+    // a dark crack with a pale lit edge, zigzagging across the timber
+    for(const [col,off] of [['#f1dfae',1],['#1a1109',0]]){ctx.strokeStyle=col;ctx.beginPath();let cx=px+off,cy=py;ctx.moveTo(cx,cy);for(let k=0;k<4;k++){const dx=(hash2(i*7+k,seed+2)-0.5)*(horiz?6:10),dy=(hash2(k,i*5+seed)-0.5)*(horiz?10:6);cx+=dx;cy+=dy;ctx.lineTo(cx,cy);}ctx.stroke();}
+    // past half, every other crack is a sliver knocked clean out: a dark slot through the timber
+    if(frac<0.5&&i%2===0){ctx.fillStyle='#120b05';if(horiz)ctx.fillRect(px-1,y+hh-h.h+2,3,h.h-4);else ctx.fillRect(x-Math.round((v.w-ww)/2)+2,py-1,v.w-4,3);}
+    // splintered: planks knocked out, pale broken ends sticking out of the line, chips on the ground
+    if(splinter&&i%3===0){const ox=x-Math.round((v.w-ww)/2);ctx.fillStyle='#2a1a0e';if(horiz)ctx.fillRect(px-3,y+hh-h.h+2,6,h.h-5);else ctx.fillRect(ox+2,py-3,v.w-5,6);
+      ctx.fillStyle='#e8cd96';if(horiz){ctx.fillRect(px-3,y+hh-h.h-5,2,7);ctx.fillRect(px+2,y+hh-h.h-3,2,5);}else{ctx.fillRect(ox+v.w-1,py-3,7,2);ctx.fillRect(ox+v.w-1,py+1,5,2);ctx.fillRect(ox-6,py-1,7,2);}
+      ctx.fillStyle='#d9b77a';for(let k=0;k<5;k++){const sx=horiz?px+(hash2(k,i+seed)-0.5)*26:ox+(k%2?v.w+2+hash2(k,i)*10:-4-hash2(k,i)*10),sy=horiz?y+hh+1+hash2(k,i)*8:py+(hash2(k,i+seed)-0.5)*26;ctx.fillRect(Math.round(sx),Math.round(sy),2,2);}}}}
 /* one worker per station this frame (filled while people are placed, read when buildings draw) */
 const WORKED={};
 const windy=()=>!S?0:S.weather==='snow'?2:(S.weather==='clear'&&isWinter())||S.weather==='fog'?1:0;const windDrift=()=>!S?0.5:[0.15,0.5,0.9][windy()]+(S.weather==='rain'?0.2:0);
@@ -762,11 +781,16 @@ function beep(f,dur,type='square',vol=0.08,slide=0,delay=0){const a=ac();if(!a||
   g.gain.setValueAtTime(0.0001,t0);g.gain.exponentialRampToValueAtTime(vol,t0+0.01);g.gain.exponentialRampToValueAtTime(0.001,t0+dur);o.connect(g);g.connect(a.destination);o.start(t0);o.stop(t0+dur+0.02);}
 function noise(dur,vol=0.05,delay=0){const a=ac();if(!a||muted)return;vol*=SFXGAIN();const n=a.sampleRate*dur;const buf=a.createBuffer(1,n,a.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);const s=a.createBufferSource();s.buffer=buf;const g=a.createGain();g.gain.value=vol;s.connect(g);g.connect(a.destination);s.start(a.currentTime+delay);}
 const SFX={
-  bite:()=>beep(220,0.06,'square',0.05,-120), crack:()=>{beep(90,0.12,'sawtooth',0.07,-50);noise(0.08,0.04);}, die:()=>beep(400,0.18,'square',0.05,-350),
+  bite:()=>{const v=0.9+Math.random()*0.2;noise(0.045,0.14);beep(190*v,0.09,'triangle',0.16,-110);beep(620*v,0.03,'square',0.05,-300);},
+  hurt:()=>{const v=0.9+Math.random()*0.2;beep(300*v,0.12,'sawtooth',0.11,-160);noise(0.05,0.08);},
+  crack:()=>{const v=0.9+Math.random()*0.2;noise(0.11,0.16);beep(80*v,0.14,'sawtooth',0.15,-45);beep(1400*v,0.02,'square',0.05,-900,0.01);},
+  slam:()=>{beep(62,0.32,'sine',0.26,-30);noise(0.16,0.2);beep(95,0.2,'sawtooth',0.12,-50,0.02);},
+  wallbreak:()=>{noise(0.3,0.24);beep(70,0.4,'sawtooth',0.2,-40);beep(50,0.5,'sine',0.22,-20,0.08);beep(900,0.05,'square',0.06,-600,0.05);},
+  die:()=>{const v=0.92+Math.random()*0.16;beep(420*v,0.22,'square',0.11,-360);noise(0.08,0.06,0.04);},
   horn:()=>{beep(110,0.5,'sawtooth',0.1);beep(147,0.6,'sawtooth',0.1,0,0.25);beep(110,0.8,'sawtooth',0.1,0,0.6);},
   done:()=>{beep(523,0.08,'square',0.05);beep(784,0.14,'square',0.05,0,0.09);}, alert:()=>{beep(660,0.07,'square',0.05);beep(660,0.07,'square',0.05,0,0.12);},
   scarce:()=>{beep(180,0.25,'triangle',0.07,-60);beep(140,0.35,'triangle',0.07,-40,0.25);},
-  shot:()=>beep(900,0.04,'triangle',0.03,-400), click:()=>beep(1200,0.03,'triangle',0.03), hurt:()=>beep(300,0.1,'sawtooth',0.05,-150),
+  shot:()=>beep(900,0.04,'triangle',0.03,-400), click:()=>beep(1200,0.03,'triangle',0.03),
   hammer:()=>{const n=3+rnd(3);let t=0;for(let i=0;i<n;i++){const f=130+Math.random()*50;beep(f,0.05,'triangle',0.03,-40,t);noise(0.03,0.02,t);t+=0.1+Math.random()*0.07;}},
   repair:()=>{beep(700,0.05,'triangle',0.03,-300);beep(900,0.05,'triangle',0.03,-300,0.08);},
   hatch:()=>{beep(600,0.05,'square',0.04);beep(900,0.08,'square',0.04,200,0.06);}, arrive:()=>{beep(440,0.08,'triangle',0.05);beep(554,0.08,'triangle',0.05,0,0.1);beep(659,0.12,'triangle',0.05,0,0.2);},
@@ -799,7 +823,8 @@ const MUSIC={
 const TRACKS={menu:{f:'assets/music/menu.ogg',loop:true,fb:'menu'},day:{f:'assets/music/day.ogg',loop:true,fb:'day'},night:{f:'assets/music/night.ogg',loop:true,fb:'day'},horde:{f:'assets/music/horde.ogg',loop:true,fb:'horde'},lose:{f:'assets/music/lose.ogg',loop:false,fb:'lose'},win:{f:'assets/music/win.ogg',loop:false,fb:'day'},expedition:{f:'assets/music/expedition.ogg',loop:true,fb:'horde'},opening1:{f:'assets/music/opening1.ogg',loop:false,fb:'menu'}};
 const mus={id:null,gain:null,src:null,step:0,next:0,timer:null,master:null,bufs:{},loads:{},ended:null};
 const mf=n=>440*Math.pow(2,(n-69)/12);
-function musicMaster(){const a=ac();if(!a)return null;if(!mus.master){mus.master=a.createGain();mus.master.connect(a.destination);}mus.master.gain.value=muted?0:(CFG.music==null?0.5:CFG.music);return mus.master;}
+const DUCK=0.4;   // music level during a horde, as a fraction of the player's setting
+function musicMaster(){const a=ac();if(!a)return null;if(!mus.master){mus.master=a.createGain();mus.master.connect(a.destination);}const want=muted?0:(CFG.music==null?0.5:CFG.music)*(S&&S.battle&&S.battle.kind!=='prowl'?DUCK:1);if(mus.master.gain.value!==want){mus.master.gain.cancelScheduledValues(a.currentTime);mus.master.gain.setTargetAtTime(want,a.currentTime,0.5);}return mus.master;}
 // The opening film. `track` is the music that plays over it AND keeps looping on the title
 // screen afterwards: because playMusic() is a no-op when the requested track is already playing,
 // the song carries straight through the cut with no restart and no gap. The video itself is
@@ -871,7 +896,7 @@ function updateMusic(){if(!AC)return;musicMaster();if(document.hidden){playMusic
   if(want==='lose'&&mus.ended==='lose'&&mus.id===null)return;
   if(want!=='lose')mus.ended=null;
   playMusic(want);}
-function sfx(k){const n=performance.now();if(lastSfx[k]&&n-lastSfx[k]<60)return;lastSfx[k]=n;SFX[k]&&SFX[k]();}
+function sfx(k){const n=performance.now();if(lastSfx[k]&&n-lastSfx[k]<(k==='bite'||k==='hurt'||k==='crack'?35:60))return;lastSfx[k]=n;SFX[k]&&SFX[k]();}
 
 /* ---------- game state ---------- */
 /* a person's look: skin tone, cap style (hair/beard/hood/hat), cap colour, outfit (plain/apron/vest/skirt), sex. Names in NAMES alternate woman/man. */
@@ -1405,21 +1430,21 @@ function updateBattle(dt){
     const canAct=e.blind<=0&&!(e.heldT>0);if(e.heldT>0)e.heldT-=dt;
     e.atWall=!e.inside&&w.lvl>0&&!w.broken&&d<4;
     if(E.wreck&&e.atWall&&canAct){e.slamT=(e.slamT==null?3:e.slamT)+dt;if(e.slamT>4.5){e.slamT=0;const burst=w.lvl===1?8:5;w.hp-=burst;B.wallDmg[e.dir]=(B.wallDmg[e.dir]||0)+burst;shake=Math.max(shake,10);puff(e.x,e.y,'#9c6b3c',14,70);sfx('crack');ticker(`The bear slammed the ${DIRS[e.dir].toLowerCase()} wall`);}}
-    if(E.ram&&!e.inside&&!e.charged&&w.lvl&&!w.broken){if(d<150&&d>6)e.charging=true;if(e.atWall||d<=6){e.charged=true;e.charging=false;const burst=(w.lvl===1?6:3);w.hp-=burst;B.wallDmg[e.dir]=(B.wallDmg[e.dir]||0)+burst;shake=Math.max(shake,8);puff(e.x,e.y,'#9c6b3c',16,110);puff(e.x,e.y-6,'#d9b77a',8,80);sfx('crack');sceneFreeze=Math.max(sceneFreeze,0.09);ticker(`A boar slammed the ${DIRS[e.dir].toLowerCase()} wall`);
+    if(E.ram&&!e.inside&&!e.charged&&w.lvl&&!w.broken){if(d<150&&d>6)e.charging=true;if(e.atWall||d<=6){e.charged=true;e.charging=false;const burst=(w.lvl===1?6:3);w.hp-=burst;B.wallDmg[e.dir]=(B.wallDmg[e.dir]||0)+burst;shake=Math.max(shake,8);puff(e.x,e.y,'#9c6b3c',16,110);puff(e.x,e.y-6,'#d9b77a',8,80);sfx('slam');sceneFreeze=Math.max(sceneFreeze,0.09);w.jolt=0.3;ticker(`A boar slammed the ${DIRS[e.dir].toLowerCase()} wall`);
       const near=guardAnimals.filter(c=>c.front===e.dir&&anim[c.id]).sort((u,v)=>Math.hypot(anim[u.id].x-e.x,anim[u.id].y-e.y)-Math.hypot(anim[v.id].x-e.x,anim[v.id].y-e.y))[0];if(near){const a=anim[near.id];const kx=e.dir==='E'?-26:e.dir==='W'?26:0,ky=e.dir==='N'?26:e.dir==='S'?-26:0;a.x+=kx;a.y+=ky;near.stun=1.4;floater(a.x,a.y-26,'knocked back','#f0b64a');}}}
     if(target&&canAct){const ts=SPECIES[target.sp];
       const blow=strike(e,'bite',EDMG*(ts.ab==='tank'?0.5:1),dt,e.id);
       e.face=anim[target.id].x>e.x?1:-1;e.hit=(e.hit||0)+dt;
-      if(blow>0){target.hp-=blow;sfx('bite');const ta=anim[target.id];
+      if(blow>0){target.hp-=blow;sfx('hurt');const ta=anim[target.id];
         if(ta){puff(ta.x,ta.y-6,'#ff6b5c',7,70);ta.flash=0.09;shove(ta,e,5);hitStop(e,ta);}
         if(ts.ab==='snap'){hitEnemy(e,1*STRIKE_EVERY);if(e.hp<=0)kill(e,cname(target));}}
       if(ts.ab==='toxic'){e.dot=Math.max(e.dot,1);e.dotT=Math.max(e.dotT,4);}}
     else if(e.atWall){if(canAct){const mult=(E.ram&&w.lvl===1?3:1)*(E.lean?1.4:1)*WALL_FACTOR;
       const blow=strike(e,'chew',EDMG*mult,dt,e.id);e.hit=(e.hit||0)+dt;
       if(blow>0){w.hp-=blow;B.wallDmg[e.dir]=(B.wallDmg[e.dir]||0)+blow;
-        sfx('crack');shake=Math.max(shake,E.ram?3:1.2);puff(e.x,e.y,'#9c6b3c',8,80);puff(e.x,e.y-4,'#d9b77a',4,60);e.freeze=Math.max(e.freeze||0,HIT_STOP*0.6);
+        sfx('crack');shake=Math.max(shake,E.ram?3:1.2);puff(e.x,e.y,'#9c6b3c',8,80);puff(e.x,e.y-4,'#d9b77a',4,60);e.freeze=Math.max(e.freeze||0,HIT_STOP*0.6);w.jolt=0.14;
         if(hasR('spikes')){hitEnemy(e,0.4*STRIKE_EVERY);if(e.hp<=0){kill(e);}}}
-      if(w.hp<=0){w.hp=0;w.broken=true;S.gates[e.dir]=false;log(`A gap opened in the ${DIRS[e.dir].toLowerCase()} wall.`,'e');tip('gap',e.dir);ticker(`The ${DIRS[e.dir].toLowerCase()} wall broke: hold the gap`,2);shake=10;puff(e.x,e.y,'#9c6b3c',16,80);sfx('crack');}}}
+      if(w.hp<=0){w.hp=0;w.broken=true;S.gates[e.dir]=false;log(`A gap opened in the ${DIRS[e.dir].toLowerCase()} wall.`,'e');tip('gap',e.dir);ticker(`The ${DIRS[e.dir].toLowerCase()} wall broke: hold the gap`,2);shake=14;puff(e.x,e.y,'#9c6b3c',24,120);puff(e.x,e.y-6,'#d9b77a',12,90);sfx('wallbreak');sceneFreeze=Math.max(sceneFreeze,0.14);}}}
     else if(E.sneak&&e.inside&&d<20){const fb=nearestFoodBuilding(e.x,e.y);if(fb){const f=FOODBLD[fb.type];const take=Math.min(S.res[f],0.6*dt);S.res[f]-=take;B.stolen[f]=(B.stolen[f]||0)+take;e.stole+=take;if(e.stole>=1){e.stole=0;e.bag=(e.bag||0)+1;floater(e.x,e.y-20,`-1 ${RESN[f].toLowerCase()}`,'#f0b64a');if(e.bag>=3){e.dead=true;B.fled=(B.fled||0)+1;floater(e.x,e.y-30,'got away','#93a386');}}}
       else if(S.eggs.length&&Math.random()<dt*0.3){S.eggs.pop();floater(e.x,e.y-20,'-1 egg','#f0b64a');}}
     else if(d>2&&canAct){const sp=E.speed*(S.battle.kind==='prowl'?0.7:1)*(hasR('caltrops')&&!e.inside&&nearWall(e)?0.6:1)*(e.charging?2.3:1)*(e.blind>0?0.2:1)*(isWinter()?0.8:1)*(W()==='rain'||W()==='snow'?0.8:1);e.x+=dx/d*sp*dt;e.y+=dy/d*sp*dt;e.face=dx>0?1:-1;}
@@ -1976,7 +2001,9 @@ function draw(ts){
   const pulse=(Math.sin(tickA/10)+1)/2;
   Object.keys(DIRS).forEach(dir=>{const w=S.walls[dir];const [x,y,ww,hh]=wallRect(dir);const front=fr.includes(dir);
     if(w.lvl){const gw=ww>hh?Math.min(96,ww/3):ww,gh=ww>hh?hh:Math.min(96,hh/3);const gx=ww>hh?x+ww/2-gw/2:x,gy=ww>hh?y:y+hh/2-gh/2;
+      if(w.jolt>0){w.jolt-=dtReal;ctx.save();ctx.translate(Math.round(Math.sin(w.jolt*90)*1.5)*(ww>hh?0:1),Math.round(Math.sin(w.jolt*90)*1.5)*(ww>hh?1:0));}
       if(!drawWallRun(dir,w.lvl,x,y,ww,hh,w.broken?[gx,gy,gw,gh]:null)){const a=ATLAS['wall'+w.lvl];if(a&&sheetReady){ctx.save();ctx.beginPath();ctx.rect(x,y,ww,hh);ctx.clip();for(let i=0;i<(ww>hh?ww:hh);i+=32){ww>hh?ctx.drawImage(sheet,a.x,a.y,a.w,a.h,x+i,y-8,32,32):ctx.drawImage(sheet,a.x,a.y,a.w,a.h,x-8,y+i,32,32);}ctx.restore();}ctx.strokeStyle='#18141c';ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,ww-2,hh-2);}
+      drawWallDamage(dir,w.lvl,x,y,ww,hh,w.hp/wallMax(w.lvl),w.broken?[gx,gy,gw,gh]:null);if(w.jolt>0)ctx.restore();
       if(w.broken){ctx.fillStyle='rgba(42,26,14,.55)';ctx.fillRect(gx,gy,gw,gh);const pa=BLD.plank_a,pb=BLD.plank_b;if(pa&&bldReady){for(let i=0;i<4;i++){const q=i%2?pb:pa;const px=gx+((i*37)%Math.max(1,gw-20)),py=gy+((i*23)%Math.max(1,gh-10))-6;ctx.drawImage(bldImg,q.x,q.y,q.w,q.h,px,py,q.w*0.6,q.h*0.6);}}ctx.fillStyle='#ff8a7a';ctx.font='9px "Press Start 2P", monospace';ctx.textAlign='center';ctx.fillText('GAP',gx+gw/2,gy+gh/2+4);}
       const gq=0.72;   // the gate sits past the middle; the bastion takes the middle
       if(S.gates[dir]){ctx.fillStyle='#5a3414';ww>hh?ctx.fillRect(x+ww*gq-14,y-2,28,hh+4):ctx.fillRect(x-2,y+hh*gq-14,ww+4,28);ctx.fillStyle='#f0b64a';ww>hh?ctx.fillRect(x+ww*gq-2,y+hh/2-1,4,2):ctx.fillRect(x+ww/2-1,y+hh*gq-2,2,4);}
@@ -2085,19 +2112,22 @@ function draw(ts){
   // Weather in a fight. The rules were always in the model - rain slows the herd, fog costs you the
   // early warning, snow halves what the scouts bring back - and the sky was drawn, but it was drawn
   // the same whether the camp was asleep or the wall was going. From here the weather leans in once
-  // a horde is on: the rain comes down twice as hard and throws lightning, snow thickens to a haze,
-  // and fog closes to the point where the shapes on the tree line are nearly gone.
+  // Weather yields to the fight. The numbers (cold animals, slow wolves, no early warning in fog)
+  // still apply during a horde; the picture does not: washes drop to a quarter, the rain and snow
+  // thin out, the fog bands stop, and only the lightning stays, because a horde night is the one
+  // time the player must read 20-pixel sprites at a glance. (Earlier the weather thickened in a
+  // fight; the recording showed a fog bank erasing the wall mid-horde.)
   const wx=W(); const fighting=!!S.battle && S.battle.kind!=='prowl';
-  if(wx==='snow'){if(fighting){ctx.fillStyle='rgba(222,234,250,.13)';ctx.fillRect(-20,-20,cv.width+40,cv.height+40);}
-    for(let i=0;i<(fighting?120:40);i++){const sx=(i*137+(running?tickA*0.6:0)+Math.sin(i+tickA/40)*30)%(cv.width+40)-20,sy=(i*91+(running?tickA*1.1:0))%(cv.height+40)-20;ctx.fillStyle='rgba(255,255,255,.7)';ctx.fillRect(sx,sy,2,2);}}
+  if(wx==='snow'){if(!fighting){ctx.fillStyle='rgba(222,234,250,.06)';ctx.fillRect(-20,-20,cv.width+40,cv.height+40);}
+    for(let i=0;i<(fighting?20:40);i++){const sx=(i*137+(running?tickA*0.6:0)+Math.sin(i+tickA/40)*30)%(cv.width+40)-20,sy=(i*91+(running?tickA*1.1:0))%(cv.height+40)-20;ctx.fillStyle='rgba(255,255,255,.7)';ctx.fillRect(sx,sy,2,2);}}
   if(wx==='rain'&&CFG.fx){for(let i=0;i<14;i++){const px=(hash2(i,77)*COLS)|0,py=(hash2(77,i)*ROWS)|0;if(!isOpen(px,py)||tileAt(px,py))continue;const cx=px*T+T*0.25+hash2(i,5)*H2,cy=py*T+T*0.3+hash2(5,i)*(T*0.45);ctx.fillStyle='rgba(120,150,200,.28)';ctx.beginPath();ctx.ellipse(cx,cy,14+hash2(i,9)*10,6+hash2(9,i)*4,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='rgba(220,235,255,.25)';ctx.fillRect(cx-4+((tickA/4+i)%6),cy-2,3,1);}}
-  if(wx==='rain'){ctx.strokeStyle=`rgba(170,205,255,${fighting?.5:.35})`;ctx.lineWidth=1;ctx.beginPath();for(let i=0;i<((CFG.fx?110:70)*(fighting?1.9:1));i++){const sx=(i*149+(running?tickA*2:0))%(cv.width+60)-30,sy=(i*83+(running?tickA*9:0))%(cv.height+40)-20;ctx.moveTo(sx,sy);ctx.lineTo(sx-3,sy+12);}ctx.stroke();ctx.fillStyle=`rgba(40,60,90,${fighting?.2:.14})`;ctx.fillRect(-20,-20,cv.width+40,cv.height+40);
+  if(wx==='rain'){ctx.strokeStyle=`rgba(170,205,255,${fighting?.22:.35})`;ctx.lineWidth=1;ctx.beginPath();for(let i=0;i<((CFG.fx?110:70)*(fighting?0.5:1));i++){const sx=(i*149+(running?tickA*2:0))%(cv.width+60)-30,sy=(i*83+(running?tickA*9:0))%(cv.height+40)-20;ctx.moveTo(sx,sy);ctx.lineTo(sx-3,sy+12);}ctx.stroke();ctx.fillStyle=`rgba(40,60,90,${fighting?.05:.14})`;ctx.fillRect(-20,-20,cv.width+40,cv.height+40);
     // lightning only while they are on the wall: a flash, then the roll a beat later
     if(fighting&&running){if(tickA-lastBolt>380&&Math.random()<0.015){lastBolt=tickA;flashT=1;thunder();}
       if(flashT>0){flashT-=0.05;ctx.fillStyle=`rgba(226,238,255,${Math.max(0,flashT)*0.45})`;ctx.fillRect(-20,-20,cv.width+40,cv.height+40);}}}
-  if(wx==='fog'){ctx.fillStyle=`rgba(190,200,190,${fighting?.34:.22})`;ctx.fillRect(-20,-20,cv.width+40,cv.height+40);for(let i=0;i<(fighting?8:5);i++){const yy=(i*160+(running?tickA*0.3:0))%(cv.height+200)-100;const g=ctx.createLinearGradient(0,yy,0,yy+90);g.addColorStop(0,'rgba(210,220,210,0)');g.addColorStop(.5,'rgba(210,220,210,.16)');g.addColorStop(1,'rgba(210,220,210,0)');ctx.fillStyle=g;ctx.fillRect(0,yy,cv.width,90);}}
-  if(wx==='heat'){ctx.fillStyle='rgba(255,150,50,.09)';ctx.fillRect(-20,-20,cv.width+40,cv.height+40);
-    if(fighting){for(let i=0;i<20;i++){const yy=cv.height*0.3+i*(cv.height*0.62/20);
+  if(wx==='fog'){ctx.fillStyle=`rgba(190,200,190,${fighting?.06:.22})`;ctx.fillRect(-20,-20,cv.width+40,cv.height+40);for(let i=0;i<(fighting?0:5);i++){const yy=(i*160+(running?tickA*0.3:0))%(cv.height+200)-100;const g=ctx.createLinearGradient(0,yy,0,yy+90);g.addColorStop(0,'rgba(210,220,210,0)');g.addColorStop(.5,'rgba(210,220,210,.16)');g.addColorStop(1,'rgba(210,220,210,0)');ctx.fillStyle=g;ctx.fillRect(0,yy,cv.width,90);}}
+  if(wx==='heat'){ctx.fillStyle=`rgba(255,150,50,${fighting?.03:.09})`;ctx.fillRect(-20,-20,cv.width+40,cv.height+40);
+    if(false){for(let i=0;i<20;i++){const yy=cv.height*0.3+i*(cv.height*0.62/20);
       ctx.fillStyle=`rgba(255,228,180,${Math.max(0,.035+.025*Math.sin(tickA/26+i*0.8))})`;
       ctx.fillRect(Math.sin(tickA/60+i)*8,yy,cv.width,2);}}}
   if(sel){const [x,y]=sel.split(',').map(Number);ctx.strokeStyle='#f0b64a';ctx.lineWidth=3;ctx.strokeRect(x*T+1.5,y*T+1.5,T-3,T-3);}
@@ -2740,6 +2770,6 @@ if(savedGame){S=migrate(savedGame);render();boot();}
 else{boot();}
 sheet.onload=()=>{sheetReady=true;if(S)render();};asheet.addEventListener('load',()=>{if(S)render();});
 requestAnimationFrame(draw);
-window.__AG={get S(){return S},TUTORIAL,showTitle,closeDrawer,camTarget,tip,checkMilestones,hitEnemy,banner,sceneFreeze:()=>sceneFreeze,HORDE_RAMP,hatcheryPos,resCap,upkeep,UPKEEP,unkept,CAPPED,consumption,production,enforceCaps,BASE_CAP,repairCostPerHp,repairAffordable,BLD,get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,bastionCrew,bastionLvl,bastionSlots,BASTION,queueExtra,coldFactor,wallMax,patrolCap,isSky,skies,roostPos,earlyEyes,guardsOf,SPECIES,addCreature,rollHorde,hordeStrength,wallSlots,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
+window.__AG={get S(){return S},TUTORIAL,showTitle,closeDrawer,camTarget,SFX,DUCK,musicDuck:()=>S&&S.battle&&S.battle.kind!=='prowl'?DUCK:1,drawWallDamage,tip,checkMilestones,hitEnemy,banner,sceneFreeze:()=>sceneFreeze,HORDE_RAMP,hatcheryPos,resCap,upkeep,UPKEEP,unkept,CAPPED,consumption,production,enforceCaps,BASE_CAP,repairCostPerHp,repairAffordable,BLD,get mus(){return mus},aico,eicon,ENEMIES,ABN,howToGet,kill,packMul,ENT,ENTD,JUNK,RELICS,strike,STRIKE_EVERY,DEATH_TIME,BREED_NOTE,ENEMY,ENT,ENTD,ENEMY_ORDER,enemyWhen,enemyLoot,hordeStrength,tick,updateBattle,startBattle,pairUp,splitNest,nests,targetFor,creatureTarget,findPath,cellCost,wallRect,gatePoint,towerPos,armMap,towerCrew,bastionCrew,bastionLvl,bastionSlots,BASTION,queueExtra,coldFactor,wallMax,patrolCap,isSky,skies,roostPos,earlyEyes,guardsOf,SPECIES,addCreature,rollHorde,hordeStrength,wallSlots,DBG,takeOffer,newGame,postCreature,setJob,queueUpgrade,queueWall,render,choose,research,placeAt:(t,x,y)=>{buildSel=t;placeAt(x,y);},openTab,fireEvent,EVENTS,RESEARCH,GEAR,SPECIES,upgradeSpecies,amb,mkLayer,thunder,ambMaster,beep,setAC:a=>{AC=a;},get AC(){return AC},newPerson,get cam(){return cam},get anim(){return anim},WORKED,particles,BLD,ico,pspr,get ctx(){return ctx}};
 })();
 </script>
